@@ -1,0 +1,10 @@
+{
+  "name": "CareTone",
+  "description": "Logiciel infirmier de transmission vocale IA, dossier patient et cotations pour IDEL",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

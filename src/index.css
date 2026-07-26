@@ -1,0 +1,239 @@
+@import "tailwindcss";
+
+/* ========================================================================== */
+/* 1. STITCH DARK THEME (class="dark theme-stitch")                           */
+/* Vert émeraude #10B981 + Fond sombre #0F172A                             */
+/* ========================================================================== */
+
+html.dark,
+html.dark.theme-stitch {
+  color-scheme: dark;
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+html.dark body,
+html.dark.theme-stitch body,
+html.dark #root {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+/* --- Card Surfaces & Background Overrides --- */
+html.dark .bg-white,
+html.dark.theme-stitch .bg-white,
+html.dark [class*="bg-white"] {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+html.dark .bg-slate-50,
+html.dark .bg-slate-100,
+html.dark.theme-stitch .bg-slate-50,
+html.dark.theme-stitch .bg-slate-100,
+html.dark [class*="bg-slate-50"],
+html.dark [class*="bg-slate-100"] {
+  background-color: #0f172a !important;
+  color: #e2e8f0 !important;
+  border-color: #334155 !important;
+}
+
+html.dark .bg-slate-200,
+html.dark.theme-stitch .bg-slate-200 {
+  background-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+/* Colored Container Accents in Dark Mode */
+html.dark .bg-sky-50,
+html.dark .bg-sky-50\/80,
+html.dark .bg-sky-50\/60,
+html.dark .bg-sky-100,
+html.dark.theme-stitch .bg-sky-50,
+html.dark.theme-stitch .bg-sky-100 {
+  background-color: rgba(14, 165, 233, 0.15) !important;
+  color: #e0f2fe !important;
+  border-color: rgba(14, 165, 233, 0.3) !important;
+}
+
+html.dark .bg-emerald-50,
+html.dark .bg-emerald-50\/60,
+html.dark .bg-emerald-100,
+html.dark.theme-stitch .bg-emerald-50,
+html.dark.theme-stitch .bg-emerald-100 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #d1fae5 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+html.dark .bg-purple-50,
+html.dark .bg-purple-50\/60,
+html.dark .bg-purple-100,
+html.dark.theme-stitch .bg-purple-50,
+html.dark.theme-stitch .bg-purple-100 {
+  background-color: rgba(168, 85, 247, 0.15) !important;
+  color: #f3e8ff !important;
+  border-color: rgba(168, 85, 247, 0.3) !important;
+}
+
+html.dark .bg-amber-50,
+html.dark .bg-amber-100,
+html.dark.theme-stitch .bg-amber-50,
+html.dark.theme-stitch .bg-amber-100 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  color: #fef3c7 !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+/* --- Primary Brand Color Replacement (#10B981) --- */
+html.dark.theme-stitch .text-\[\#006591\] {
+  color: #10b981 !important;
+}
+
+html.dark.theme-stitch .bg-\[\#006591\] {
+  background-color: #059669 !important;
+  color: #ffffff !important;
+}
+
+html.dark.theme-stitch .hover\:bg-\[\#004c6e\]:hover {
+  background-color: #047857 !important;
+}
+
+html.dark.theme-stitch .from-\[\#006591\] {
+  --tw-gradient-from: #047857 var(--tw-gradient-from-position) !important;
+}
+
+html.dark.theme-stitch .to-\[\#006591\] {
+  --tw-gradient-to: #10b981 var(--tw-gradient-to-position) !important;
+}
+
+/* --- Form Controls: Inputs, Textareas, Selects --- */
+html.dark input,
+html.dark textarea,
+html.dark select,
+html.dark option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* --- Text Overrides --- */
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700 {
+  color: #f8fafc !important;
+}
+
+html.dark .text-slate-600,
+html.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html.dark .text-sky-900 {
+  color: #38bdf8 !important;
+}
+
+html.dark .text-emerald-900,
+html.dark .text-emerald-800 {
+  color: #34d399 !important;
+}
+
+html.dark .text-purple-900,
+html.dark .text-purple-800 {
+  color: #c084fc !important;
+}
+
+/* --- Borders --- */
+html.dark .border-slate-200,
+html.dark .border-slate-100,
+html.dark .border-slate-300,
+html.dark .border-slate-200\/80,
+html.dark .border-slate-200\/90,
+html.dark .border-slate-200\/70 {
+  border-color: #334155 !important;
+}
+
+/* --- Navigation & Header Overrides --- */
+html.dark header,
+html.dark nav,
+html.dark aside {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+}
+
+html.dark nav.fixed.bottom-0 {
+  background-color: rgba(15, 23, 42, 0.95) !important;
+  border-color: #334155 !important;
+}
+
+/* --- Leaflet Map Dark Styling --- */
+html.dark .leaflet-container {
+  background-color: #0f172a !important;
+}
+
+html.dark .leaflet-popup-content-wrapper,
+html.dark .leaflet-popup-tip {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5) !important;
+}
+
+html.dark .leaflet-control-zoom-in,
+html.dark .leaflet-control-zoom-out {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+
+/* ========================================================================== */
+/* 2. PLEIN SOLEIL THEME (class="theme-light-sun")                            */
+/* Fond vert d'eau très clair + vert émeraude intense (#16A34A)             */
+/* ========================================================================== */
+
+html.theme-light-sun {
+  color-scheme: light;
+  background-color: #ffffff !important;
+  color: #052e16 !important;
+}
+
+html.theme-light-sun body {
+  background-color: #f0fdf4 !important;
+  color: #052e16 !important;
+}
+
+html.theme-light-sun .text-\[\#006591\] {
+  color: #15803d !important;
+}
+
+html.theme-light-sun .bg-\[\#006591\] {
+  background-color: #16a34a !important;
+  color: #ffffff !important;
+}
+
+html.theme-light-sun .bg-sky-100 {
+  background-color: #dcfce7 !important;
+  color: #14532d !important;
+}
+
+html.theme-light-sun .text-sky-900 {
+  color: #14532d !important;
+}
+
+html.theme-light-sun .bg-sky-50 {
+  background-color: #f0fdf4 !important;
+}
+
+html.theme-light-sun .from-\[\#006591\] {
+  --tw-gradient-from: #15803d var(--tw-gradient-from-position) !important;
+}
+
+html.theme-light-sun .to-\[\#006591\] {
+  --tw-gradient-to: #22c55e var(--tw-gradient-to-position) !important;
+}

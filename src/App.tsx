@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { NavView, Patient, MedicalAlert, CotationItem, Conversation, PersonalNote } from './types';
 import { INITIAL_PATIENTS, INITIAL_ALERTS, INITIAL_COTATIONS, INITIAL_CONVERSATIONS, INITIAL_NOTES } from './data/mockData';
 
@@ -270,6 +271,7 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#f7f9fb] flex text-slate-800 font-sans antialiased">
+      <SpeedInsights />
       {/* Sidebar */}
       <Sidebar
         currentView={currentView}

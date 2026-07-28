@@ -24,7 +24,7 @@ export const DEFAULT_TOURNEE_COLUMNS: TourneeColumn[] = [
   },
   {
     id: 'MATIN',
-    title: 'Tournée 1',
+    title: 'Tournée Matin',
     subtitle: 'Premier passage de la journée (08h00 - 12h00)',
     bgColor: 'bg-amber-50/50',
     borderColor: 'border-amber-200/80',
@@ -34,12 +34,22 @@ export const DEFAULT_TOURNEE_COLUMNS: TourneeColumn[] = [
   },
   {
     id: 'SOIR',
-    title: 'Tournée 2',
+    title: 'Tournée Soir',
     subtitle: 'Second passage de la journée (16h00 - 20h00)',
     bgColor: 'bg-indigo-50/50',
     borderColor: 'border-indigo-200/80',
     badgeBg: 'bg-indigo-100',
     badgeText: 'text-indigo-800',
+    isDeletable: true,
+  },
+  {
+    id: 'CABINET',
+    title: 'Tournée Garde Cabinet',
+    subtitle: 'Permanence & Soins sur place',
+    bgColor: 'bg-emerald-50/50',
+    borderColor: 'border-emerald-200/80',
+    badgeBg: 'bg-emerald-100',
+    badgeText: 'text-emerald-800',
     isDeletable: true,
   },
 ];

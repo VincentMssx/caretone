@@ -10,7 +10,6 @@ import {
   saveStoredTourneePatients,
   getStoredTourneeColumns
 } from '../data/mockPatients';
-import { VoiceRouteControl } from './VoiceRouteControl';
 import { 
   MapPin, 
   Navigation, 
@@ -784,13 +783,6 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Voice Route Control Floating FAB */}
-      <VoiceRouteControl
-        currentPatients={currentTourPatients}
-        onRouteUpdated={handleVoiceRouteUpdate}
-        onSuccessToast={onSuccessToast}
-      />
     </div>
   );
 };

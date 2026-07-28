@@ -174,12 +174,6 @@ export const MessagerieView: React.FC<MessagerieViewProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 truncate">{conv.lastMessage}</p>
-
-                  {conv.urgentBadge && (
-                    <span className="inline-block mt-1 bg-red-100 text-red-700 font-bold text-[10px] px-2 py-0.5 rounded-full">
-                      {conv.urgentBadge}
-                    </span>
-                  )}
                 </div>
               </div>
             );
@@ -300,6 +294,23 @@ export const MessagerieView: React.FC<MessagerieViewProps> = ({
               className="p-2 text-slate-400 hover:text-[#006591] rounded-full hover:bg-slate-200/50 transition-colors cursor-pointer"
             >
               <Paperclip className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const phrases = [
+                  "Constantes stables ce matin, pansement refait sans particularité.",
+                  "Demande de renouvellement d'ordonnance transmise au médecin.",
+                  "Patient absent lors du passage de 9h, relancé par téléphone."
+                ];
+                const chosen = phrases[Math.floor(Math.random() * phrases.length)];
+                setInputText(prev => prev ? prev + " " + chosen : chosen);
+                if (onSuccessToast) onSuccessToast("Dictée vocale transcrite dans le message !");
+              }}
+              title="Dictée vocale"
+              className="p-2 text-slate-400 hover:text-[#006591] rounded-full hover:bg-slate-200/50 transition-colors cursor-pointer"
+            >
+              <Mic className="w-4 h-4" />
             </button>
               <input
                 type="text"

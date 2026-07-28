@@ -99,26 +99,19 @@ export const AccueilView: React.FC<AccueilViewProps> = ({
         </div>
 
         <div className="relative border-l-2 border-slate-200 ml-3 space-y-4">
-          {filteredPatients.map((patient, index) => {
-            const isFirst = index === 1; // highlight active
+          {filteredPatients.map((patient) => {
             return (
               <div key={patient.id} className="relative pl-6">
                 <div 
-                  className={`absolute -left-[9px] top-1.5 w-4 h-4 rounded-full ring-4 ring-white ${
-                    isFirst ? 'bg-[#0ea5e9]' : 'bg-slate-300'
-                  }`} 
+                  className="absolute -left-[9px] top-1.5 w-4 h-4 rounded-full ring-4 ring-white bg-slate-300" 
                 />
                 
                 <div 
                   onClick={() => onSelectPatient(patient)}
-                  className={`p-4 rounded-xl border transition-all cursor-pointer flex justify-between items-center ${
-                    isFirst 
-                      ? 'bg-sky-50/60 border-sky-200 shadow-sm' 
-                      : 'bg-slate-50/60 border-slate-200 hover:bg-slate-100/60'
-                  }`}
+                  className="p-4 rounded-xl border transition-all cursor-pointer flex justify-between items-center bg-slate-50/60 border-slate-200 hover:bg-slate-100/60"
                 >
                   <div className="space-y-0.5">
-                    <span className={`text-xs font-bold ${isFirst ? 'text-[#0ea5e9]' : 'text-slate-500'}`}>
+                    <span className="text-xs font-bold text-slate-500">
                       {patient.nextVisitTime}
                     </span>
                     <h3 className="font-bold text-slate-800 text-sm">{patient.name}</h3>

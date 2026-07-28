@@ -35,6 +35,17 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
   const [activeFilter, setActiveFilter] = useState<'tous' | 'tournee' | 'critique'>('tous');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
+  const getFormattedNextVisit = (nextVisitTime: string) => {
+    if (!nextVisitTime) return "Aujourd'hui";
+    if (nextVisitTime.includes(',')) {
+      return nextVisitTime.split(',')[0].trim();
+    }
+    if (/^\d{1,2}:\d{2}$/.test(nextVisitTime.trim())) {
+      return "Aujourd'hui";
+    }
+    return nextVisitTime;
+  };
+
   const filteredPatients = patients.filter(patient => {
     const matchesSearch = 
       patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -63,26 +74,6 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end">
-          {/* Filter Chips */}
-          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
-            <button
-              onClick={() => setActiveFilter('tous')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                activeFilter === 'tous' ? 'bg-white text-[#006591] shadow-xs' : 'text-slate-600'
-              }`}
-            >
-              Tous
-            </button>
-            <button
-              onClick={() => setActiveFilter('critique')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                activeFilter === 'critique' ? 'bg-white text-red-600 shadow-xs' : 'text-slate-600'
-              }`}
-            >
-              Points Vigilance
-            </button>
-          </div>
-
           {/* View Toggle */}
           <div className="flex bg-slate-100 p-1 rounded-xl">
             <button
@@ -153,9 +144,9 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
                 <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-200/50 pt-2">
                   <span className="flex items-center gap-1 font-semibold text-[#006591]">
                     <Clock className="w-3.5 h-3.5" />
-                    {patient.nextVisitTime}
+                    <span>Visite : {getFormattedNextVisit(patient.nextVisitTime)}</span>
                   </span>
-                  <span>Freq: {patient.visitFrequency}</span>
+                  <span className="font-semibold text-slate-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-md">Fréquence : {patient.visitFrequency || '1x / Jour'}</span>
                 </div>
               </div>
 
@@ -216,19 +207,6 @@ export const PatientsView: React.FC<PatientsViewProps> = ({
           </div>
         </div>
       )}
-
-      {/* Page Voice Mic Button */}
-      <PageVoiceMicButton
-        pageTitle="Patients & Fiches de soins"
-        placeholderExamples={[
-          "Rechercher le patient Martin",
-          "Filtrer sur les points de vigilance",
-          "Ajouter le patient Pierre Durand"
-        ]}
-        onVoiceCommand={(cmd) => {
-          setSearchQuery(cmd);
-        }}
-      />
     </div>
   );
 };

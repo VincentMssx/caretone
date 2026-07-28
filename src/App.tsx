@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
-import { NavView, Patient, MedicalAlert, CotationItem, Conversation, PersonalNote } from './types';
+import { NavView, Patient, MedicalAlert, CotationItem, Conversation, PersonalNote, Doctor } from './types';
 import { INITIAL_PATIENTS, INITIAL_ALERTS, INITIAL_COTATIONS, INITIAL_CONVERSATIONS, INITIAL_NOTES } from './data/mockData';
+import { getStoredDoctors, saveStoredDoctors } from './data/mockDoctors';
 
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -10,10 +11,12 @@ import { NewCareModal } from './components/NewCareModal';
 import { NewPatientModal } from './components/NewPatientModal';
 import { NewCotationModal } from './components/NewCotationModal';
 import { VoiceRecorderModal } from './components/VoiceRecorderModal';
+import { DoctorDetailModal } from './components/DoctorDetailModal';
 
 import { AccueilView } from './views/AccueilView';
 import { PatientsView } from './views/PatientsView';
 import { PatientDetailView } from './views/PatientDetailView';
+import { DoctorsView } from './views/DoctorsView';
 import { VoiceTransmissionHubView } from './views/VoiceTransmissionHubView';
 import { LiveVoiceTransmissionView } from './views/LiveVoiceTransmissionView';
 import { CotationsView } from './views/CotationsView';
@@ -28,6 +31,43 @@ import { CheckCircle2, Sparkles, X, LayoutDashboard, Users, Map, Mic, Mail, Menu
 
 export function App() {
   const [currentView, setCurrentView] = useState<NavView>('accueil');
+
+  // Doctors State
+  const [doctors, setDoctors] = useState<Doctor[]>(() => getStoredDoctors());
+  const [selectedDoctorForModal, setSelectedDoctorForModal] = useState<Doctor | null>(null);
+
+  const handleAddDoctor = (newDoc: Doctor) => {
+    const updated = [newDoc, ...doctors];
+    setDoctors(updated);
+    saveStoredDoctors(updated);
+    showToast(`Médecin ${newDoc.name} enregistré dans la base de données`);
+  };
+
+  const handleUpdateDoctor = (updatedDoc: Doctor) => {
+    const updated = doctors.map(d => d.id === updatedDoc.id ? updatedDoc : d);
+    setDoctors(updated);
+    saveStoredDoctors(updated);
+    setSelectedDoctorForModal(updatedDoc);
+    showToast(`Fiche de ${updatedDoc.name} mise à jour`);
+  };
+
+  const handleOpenDoctorInfoByName = (doctorName: string) => {
+    if (!doctorName) return;
+    const cleanName = doctorName.toLowerCase().replace('dr.', '').trim();
+    const match = doctors.find(d => d.name.toLowerCase().includes(cleanName));
+    if (match) {
+      setSelectedDoctorForModal(match);
+    } else {
+      // Create a temporary doctor profile for viewing
+      setSelectedDoctorForModal({
+        id: `doc-temp-${Date.now()}`,
+        name: doctorName.startsWith('Dr.') ? doctorName : `Dr. ${doctorName}`,
+        specialty: 'Médecin Généraliste',
+        phone: '02 40 12 34 56',
+        address: '14 Place Royale, 44000 Nantes'
+      });
+    }
+  };
 
   // Enforce Classic Theme as default
   useEffect(() => {
@@ -114,6 +154,15 @@ export function App() {
   const handleAddPatient = (newPatient: Patient) => {
     setPatients(prev => [newPatient, ...prev]);
     showToast(`Fiche créée pour ${newPatient.name}`);
+  };
+
+  // Update existing patient
+  const handleUpdatePatient = (updatedPatient: Patient) => {
+    setPatients(prev => prev.map(p => p.id === updatedPatient.id ? updatedPatient : p));
+    if (selectedPatientForDrawer?.id === updatedPatient.id) {
+      setSelectedPatientForDrawer(updatedPatient);
+    }
+    showToast(`Données de ${updatedPatient.name} mises à jour avec succès`);
   };
 
   // Add new cotation
@@ -256,14 +305,18 @@ export function App() {
     switch (currentView) {
       case 'accueil': return 'Accueil';
       case 'patients': return 'Patients';
+      case 'doctors': return 'Professionnels de Santé';
+      case 'tournee-manager': return 'Tournées';
+      case 'tournee-scheduling': return 'Planning & Gardes';
+      case 'route-planner': return 'Trajet';
       case 'patient-detail': return 'Dossier Patient';
-      case 'voice-transmission-hub': return 'Voice Transmission';
-      case 'live-voice-transmission': return 'Voice Transmission En Direct';
-      case 'cotations': return 'Cotations & Facturation';
-      case 'messagerie': return 'Messagerie Sécurisée HDS';
-      case 'notes': return 'Notes Personnelles IDEL';
+      case 'voice-transmission-hub':
+      case 'live-voice-transmission': return 'Transmission';
+      case 'cotations': return 'Cotations';
+      case 'messagerie': return 'Messagerie';
+      case 'notes': return 'Notes Personnelles';
       case 'settings': return 'Settings';
-      default: return 'CareTone IDEL';
+      default: return 'Accueil';
     }
   };
 
@@ -359,6 +412,22 @@ export function App() {
                 setCurrentView('live-voice-transmission');
               }}
               onOpenNewCareNote={() => setIsNewCareModalOpen(true)}
+              onOpenDoctorInfo={handleOpenDoctorInfoByName}
+              onUpdatePatient={handleUpdatePatient}
+              doctors={doctors}
+            />
+          )}
+
+          {currentView === 'doctors' && (
+            <DoctorsView
+              doctors={doctors}
+              patients={patients}
+              onOpenDoctorDetail={(doc) => setSelectedDoctorForModal(doc)}
+              onAddDoctor={handleAddDoctor}
+              onViewPatientDossier={(patientId) => {
+                setSelectedPatientDetailId(patientId);
+                setCurrentView('patient-detail');
+              }}
             />
           )}
 
@@ -426,6 +495,7 @@ export function App() {
           setIsPatientDrawerOpen(false);
           setCurrentView('live-voice-transmission');
         }}
+        onOpenDoctorInfo={handleOpenDoctorInfoByName}
       />
 
       {/* Modals */}
@@ -444,6 +514,21 @@ export function App() {
         isOpen={isNewPatientModalOpen}
         onClose={() => setIsNewPatientModalOpen(false)}
         onAddPatient={handleAddPatient}
+        doctors={doctors}
+        onAddDoctor={handleAddDoctor}
+      />
+
+      <DoctorDetailModal
+        doctor={selectedDoctorForModal}
+        isOpen={!!selectedDoctorForModal}
+        onClose={() => setSelectedDoctorForModal(null)}
+        patients={patients}
+        onUpdateDoctor={handleUpdateDoctor}
+        onViewPatientDossier={(patientId) => {
+          setSelectedDoctorForModal(null);
+          setSelectedPatientDetailId(patientId);
+          setCurrentView('patient-detail');
+        }}
       />
 
       <NewCotationModal

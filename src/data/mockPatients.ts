@@ -87,6 +87,7 @@ export interface TourneePatient {
   estimatedDurationMinutes?: number; // Care duration in minutes
   typeSoin: string;
   statutTournee: StatutTournee;
+  tournees?: string[]; // Array of assigned tournee column IDs
   orderIndex?: number;
 }
 

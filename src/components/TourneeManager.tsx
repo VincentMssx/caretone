@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { PageVoiceMicButton } from './PageVoiceMicButton';
 import { 
   DragDropContext, 
   Droppable, 
@@ -230,10 +229,49 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
     }
   };
 
+  const getPatientTournees = (patient: TourneePatient): string[] => {
+    if (patient.tournees && patient.tournees.length > 0) {
+      return patient.tournees;
+    }
+    return patient.statutTournee ? [patient.statutTournee] : ['UNASSIGNED'];
+  };
+
   const getColumnPatients = (status: StatutTournee) => {
     return patients
-      .filter(p => p.statutTournee === status)
+      .filter(p => {
+        const assigned = getPatientTournees(p);
+        return assigned.includes(status);
+      })
       .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+  };
+
+  const handleToggleTourneeForPatient = (patientId: string, tourneeId: string) => {
+    const updated = patients.map(p => {
+      if (p.id === patientId) {
+        let currentTournees = [...getPatientTournees(p)];
+        if (currentTournees.includes(tourneeId)) {
+          currentTournees = currentTournees.filter(t => t !== tourneeId);
+          if (currentTournees.length === 0) {
+            currentTournees = ['UNASSIGNED'];
+          }
+        } else {
+          currentTournees = currentTournees.filter(t => t !== 'UNASSIGNED');
+          currentTournees.push(tourneeId);
+        }
+        return {
+          ...p,
+          statutTournee: currentTournees[0],
+          tournees: currentTournees
+        };
+      }
+      return p;
+    });
+    handleSavePatients(updated);
+    if (onSuccessToast) {
+      const pName = patients.find(p => p.id === patientId)?.nom;
+      const colTitle = columns.find(c => c.id === tourneeId)?.title || tourneeId;
+      onSuccessToast(`Tournées modifiées pour ${pName}`);
+    }
   };
 
   return (
@@ -344,7 +382,7 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
           return (
             <div key={'summary-' + col.id} className="bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs">
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] text-slate-500 font-extrabold uppercase truncate">{col.title}</p>
+                <p className="text-[10px] text-slate-500 font-extrabold uppercase leading-tight">{col.title}</p>
                 <p className="text-base font-bold text-slate-900 mt-0.5">{count} patient(s)</p>
               </div>
             </div>
@@ -419,8 +457,8 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
                           <Route className="w-5 h-5 text-[#006591] shrink-0" />
                         )}
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <h3 className="text-sm font-bold text-slate-900 truncate">{col.title}</h3>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h3 className="text-sm font-bold text-slate-900 leading-tight">{col.title}</h3>
                             <button
                               onClick={() => handleStartEditColumn(col)}
                               className="text-slate-400 hover:text-[#006591] p-0.5 rounded cursor-pointer transition-colors shrink-0"
@@ -429,7 +467,7 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                          <p className="text-[11px] text-slate-500 truncate mt-0.5">{col.subtitle}</p>
+                          <p className="text-[11px] text-slate-500 leading-tight mt-0.5">{col.subtitle}</p>
                         </div>
                       </div>
 
@@ -483,8 +521,8 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
                                 }`}
                               >
                                 <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
+                                  <div className="flex-1 space-y-2">
+                                    <div className="flex items-center justify-between">
                                       <span className="font-bold text-slate-900 text-sm">
                                         {patient.nom}
                                       </span>
@@ -493,31 +531,37 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
                                       </span>
                                     </div>
 
-                                    <div className="flex items-start gap-1.5 text-xs text-slate-600 mt-1.5">
-                                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                                      <span className="line-clamp-2 leading-tight">{patient.adresse}</span>
-                                    </div>
-
-                                    <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-100 text-xs flex-wrap">
-                                      <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${
-                                        patient.hasFixedTime
-                                          ? 'bg-amber-100 text-amber-900 font-bold border border-amber-300'
-                                          : 'bg-slate-100 text-slate-600 font-medium'
-                                      }`}>
-                                        <Clock className="w-3 h-3 text-[#006591]" />
-                                        {patient.heurePassage ? patient.heurePassage : 'Flexible (Sans horaire)'}
-                                      </span>
-                                      <span className="flex items-center gap-1 text-slate-600 bg-sky-50 text-[#006591] px-2 py-0.5 rounded-md font-medium truncate">
-                                        <Stethoscope className="w-3 h-3 text-[#006591]" />
-                                        {patient.typeSoin}
-                                      </span>
+                                    {/* Multi-Tournée Quick Selectors */}
+                                    <div className="pt-2 border-t border-slate-100 space-y-1">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Ajouter/Retirer de :</span>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {columns.filter(c => c.id !== 'UNASSIGNED').map(c => {
+                                          const isAssigned = getPatientTournees(patient).includes(c.id);
+                                          return (
+                                            <button
+                                              key={c.id}
+                                              type="button"
+                                              onClick={() => handleToggleTourneeForPatient(patient.id, c.id)}
+                                              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                                isAssigned
+                                                  ? 'bg-[#006591] text-white shadow-2xs'
+                                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
+                                              }`}
+                                              title={`Cliquer pour ${isAssigned ? 'retirer de' : 'ajouter à'} ${c.title}`}
+                                            >
+                                              <span>{isAssigned ? '✓' : '+'}</span>
+                                              <span>{c.title.replace('Tournée ', '')}</span>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
                                     </div>
                                   </div>
 
                                   <div
                                     {...providedDrag.dragHandleProps}
                                     title="Glisser pour déplacer"
-                                    className="p-1.5 text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing rounded"
+                                    className="p-1.5 text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing rounded shrink-0"
                                   >
                                     <GripVertical className="w-4 h-4" />
                                   </div>
@@ -536,19 +580,6 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
           })}
         </div>
       </DragDropContextComp>
-
-      {/* Voice Assistant button for Tournées */}
-      <PageVoiceMicButton
-        pageTitle="Gestion des Tournées"
-        placeholderExamples={[
-          "Passer M. Dupont en Tournée 1",
-          "Renommer la tournée du matin en Tournée Centre",
-          "Ajouter une nouvelle tournée après-midi"
-        ]}
-        onVoiceCommand={(cmd) => {
-          if (onSuccessToast) onSuccessToast(`Modification vocale enregistrée : ${cmd}`);
-        }}
-      />
     </div>
   );
 };

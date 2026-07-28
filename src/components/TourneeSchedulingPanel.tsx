@@ -52,8 +52,9 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
   // Active selected calendar for negotiation
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>(INITIAL_TOURNEE_CALENDARS[0].id);
   
-  // Filter by tournee name
+  // Filter by tournee name and nurse
   const [tourneeFilter, setTourneeFilter] = useState<string>('ALL');
+  const [nurseFilter, setNurseFilter] = useState<string>('ALL');
   const [availableTournees, setAvailableTournees] = useState<TourneeColumn[]>([]);
 
   React.useEffect(() => {
@@ -72,9 +73,75 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
   // Day Selection & Planning Modal State
   const [selectedDayDateStr, setSelectedDayDateStr] = useState<string | null>(null);
   const [planNurseId, setPlanNurseId] = useState<string>('nurse-julie');
-  const [planTourneeName, setPlanTourneeName] = useState<string>('Tournée 1');
+  const [planTourneeName, setPlanTourneeName] = useState<string>('Tournée Matin');
   const [planStatus, setPlanStatus] = useState<ShiftStatus>('PENDING');
   const [planComment, setPlanComment] = useState<string>('');
+
+  // Multi-day Click & Drag selection
+  const [selectedMultiDates, setSelectedMultiDates] = useState<string[]>([]);
+  const [isMouseDownGrid, setIsMouseDownGrid] = useState<boolean>(false);
+  const [multiSelectNurseId, setMultiSelectNurseId] = useState<string>('nurse-julie');
+  const [multiSelectTourneeName, setMultiSelectTourneeName] = useState<string>('Tournée Matin');
+
+  const handleDayCellMouseDown = (dateStr: string, isCurrentMonth: boolean) => {
+    if (!isCurrentMonth) return;
+    setIsMouseDownGrid(true);
+    if (selectedMultiDates.includes(dateStr)) {
+      setSelectedMultiDates(selectedMultiDates.filter(d => d !== dateStr));
+    } else {
+      setSelectedMultiDates(prev => [...prev, dateStr]);
+    }
+  };
+
+  const handleDayCellMouseEnter = (dateStr: string, isCurrentMonth: boolean) => {
+    if (!isCurrentMonth || !isMouseDownGrid) return;
+    if (!selectedMultiDates.includes(dateStr)) {
+      setSelectedMultiDates(prev => [...prev, dateStr]);
+    }
+  };
+
+  const handleApplyMultiSelection = () => {
+    if (selectedMultiDates.length === 0) return;
+
+    // Apply new shifts for multiSelectNurseId & multiSelectTourneeName
+    const updatedCalendars = calendars.map(cal => {
+      if (cal.nurseId === multiSelectNurseId) {
+        const existingShifts = [...cal.shifts];
+        selectedMultiDates.forEach(dateStr => {
+          const shiftIndex = existingShifts.findIndex(s => s.date === dateStr);
+          if (shiftIndex >= 0) {
+            existingShifts[shiftIndex] = {
+              ...existingShifts[shiftIndex],
+              tourneeName: multiSelectTourneeName,
+              status: 'PENDING',
+              updatedAt: new Date().toISOString()
+            };
+          } else {
+            existingShifts.push({
+              id: `shift-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+              date: dateStr,
+              tourneeName: multiSelectTourneeName,
+              status: 'PENDING',
+              proposedByRole: currentUser.role,
+              updatedAt: new Date().toISOString()
+            });
+          }
+        });
+        return {
+          ...cal,
+          shifts: existingShifts,
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return cal;
+    });
+
+    setCalendars(updatedCalendars);
+    setSelectedMultiDates([]);
+    if (onSuccessToast) {
+      onSuccessToast(`${selectedMultiDates.length} jour(s) affecté(s) à ${multiSelectNurseId === 'nurse-julie' ? 'Julie R.' : multiSelectNurseId === 'nurse-marc' ? 'Marc V.' : 'Sophie L.'} (${multiSelectTourneeName})`);
+    }
+  };
 
   // Quick Shift Detail Modal
   const [activeShiftDetail, setActiveShiftDetail] = useState<{
@@ -161,64 +228,74 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
     }>> = {};
 
     calendars.forEach(cal => {
-      if (tourneeFilter !== 'ALL' && !cal.tourneeName.includes(tourneeFilter)) return;
+      if (nurseFilter !== 'ALL' && cal.nurseId !== nurseFilter) return;
+
       cal.shifts.forEach(shift => {
+        const shiftTournee = shift.tourneeName || cal.tourneeName;
+
+        if (tourneeFilter !== 'ALL') {
+          const filterLower = tourneeFilter.toLowerCase();
+          const matchCal = cal.tourneeName.toLowerCase().includes(filterLower);
+          const matchShift = shiftTournee.toLowerCase().includes(filterLower);
+          if (!matchCal && !matchShift) return;
+        }
+
         if (!map[shift.date]) map[shift.date] = [];
         map[shift.date].push({
           shift,
           calendar: cal,
           nurseName: cal.nurseName,
           nurseAvatar: cal.nurseAvatar,
-          tourneeTag: cal.tourneeName.includes('Tournée 1') ? 'T1' : 'T2'
+          tourneeTag: shiftTournee.includes('1') || shiftTournee.toLowerCase().includes('matin') ? 'T1' : 'T2'
         });
       });
     });
 
     return map;
-  }, [calendars, tourneeFilter]);
+  }, [calendars, tourneeFilter, nurseFilter]);
 
-  // Nurse Workload Summary
+  // Nurse Workload Summary (Boxes for all nurses)
   const nurseWorkloadList = React.useMemo(() => {
-    const map: Record<string, {
-      nurseId: string;
-      nurseName: string;
-      nurseAvatar: string;
-      tourneeName: string;
-      totalShifts: number;
-      acceptedShifts: number;
-      pendingShifts: number;
-      rejectedShifts: number;
-      alternativeShifts: number;
-      calendarId: string;
-    }> = {};
+    const nurses = DEMO_USERS.filter(u => u.role === 'NURSE');
+    return nurses.map(nurse => {
+      const nurseCal = calendars.find(c => c.nurseId === nurse.id);
+      let totalShifts = 0;
+      let acceptedShifts = 0;
+      let pendingShifts = 0;
+      let rejectedShifts = 0;
+      let alternativeShifts = 0;
 
-    calendars.forEach(cal => {
-      if (tourneeFilter !== 'ALL' && !cal.tourneeName.includes(tourneeFilter)) return;
-      if (!map[cal.nurseId]) {
-        map[cal.nurseId] = {
-          nurseId: cal.nurseId,
-          nurseName: cal.nurseName,
-          nurseAvatar: cal.nurseAvatar,
-          tourneeName: cal.tourneeName,
-          totalShifts: 0,
-          acceptedShifts: 0,
-          pendingShifts: 0,
-          rejectedShifts: 0,
-          alternativeShifts: 0,
-          calendarId: cal.id
-        };
-      }
-
-      cal.shifts.forEach(s => {
-        map[cal.nurseId].totalShifts++;
-        if (s.status === 'ACCEPTED') map[cal.nurseId].acceptedShifts++;
-        else if (s.status === 'PENDING') map[cal.nurseId].pendingShifts++;
-        else if (s.status === 'REJECTED') map[cal.nurseId].rejectedShifts++;
-        else if (s.status === 'PROPOSED_ALTERNATIVE') map[cal.nurseId].alternativeShifts++;
+      calendars.filter(c => c.nurseId === nurse.id).forEach(cal => {
+        cal.shifts.forEach(s => {
+          if (tourneeFilter !== 'ALL') {
+            const filterLower = tourneeFilter.toLowerCase();
+            const sTournee = s.tourneeName || cal.tourneeName;
+            if (!cal.tourneeName.toLowerCase().includes(filterLower) && !sTournee.toLowerCase().includes(filterLower)) {
+              return;
+            }
+          }
+          totalShifts++;
+          if (s.status === 'ACCEPTED') acceptedShifts++;
+          else if (s.status === 'PENDING') pendingShifts++;
+          else if (s.status === 'REJECTED') rejectedShifts++;
+          else if (s.status === 'PROPOSED_ALTERNATIVE') alternativeShifts++;
+        });
       });
-    });
 
-    return Object.values(map);
+      return {
+        nurseId: nurse.id,
+        nurseName: nurse.name,
+        nurseAvatar: nurse.avatar,
+        role: nurse.name === 'Julie R.' ? 'IDEL Titulaire' : nurse.name === 'Marc V.' ? 'IDEL Associé' : 'IDEL Remplaçant(e)',
+        tourneeName: nurseCal ? nurseCal.tourneeName : 'Tournée Matin',
+        totalShifts,
+        acceptedShifts,
+        pendingShifts,
+        rejectedShifts,
+        alternativeShifts,
+        calendarId: nurseCal ? nurseCal.id : (calendars[0]?.id || '')
+      };
+    });
   }, [calendars, tourneeFilter]);
 
   // New Calendar Modal State
@@ -794,157 +871,280 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
         </div>
       </div>
 
-      {/* Main Tournée Scheduling Header & Action Bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 bg-[#006591]/10 text-[#006591] text-[11px] font-extrabold uppercase rounded-md tracking-wider">
-              Planning & Négociations IDEL
-            </span>
-            <span className="text-xs text-slate-400">•</span>
-            <span className="text-xs text-slate-500 font-semibold">2 Tournées • 4 Infirmiers</span>
-          </div>
-          <h2 className="text-xl font-bold text-slate-800 mt-1">Planning de Gardes & Négociations</h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Consultez le calendrier mensuel avec le nom des infirmiers par jour, ou validez les négociations de garde.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          {/* View Mode Toggle Segment */}
-          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200">
-            <button
-              onClick={() => setViewMode('GRID')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                viewMode === 'GRID'
-                  ? 'bg-[#006591] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Grid className="w-3.5 h-3.5" />
-              <span>Calendrier Mensuel</span>
-            </button>
-            <button
-              onClick={() => setViewMode('LIST')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                viewMode === 'LIST'
-                  ? 'bg-[#006591] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <List className="w-3.5 h-3.5" />
-              <span>Négociations & Chat</span>
-            </button>
-          </div>
-
-          {/* Filter dropdown */}
-          <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-2 rounded-xl border border-slate-200">
-            <Filter className="w-3.5 h-3.5 text-slate-500" />
-            <select
-              value={tourneeFilter}
-              onChange={(e) => setTourneeFilter(e.target.value)}
-              className="bg-transparent text-xs font-bold text-slate-700 cursor-pointer focus:outline-none"
-            >
-              <option value="ALL">Toutes les Tournées</option>
-              {availableTournees.map(col => (
-                <option key={col.id} value={col.title}>
-                  {col.title} ({col.subtitle})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Create New Calendar Button (Only for Partner role) */}
-          {currentUser.role === 'PARTNER' && (
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 bg-[#006591] hover:bg-[#004d70] text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Créer un Planning</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Informative Banner: Explanation of Validation Status */}
-      <div className="bg-sky-50/90 border border-sky-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
-        <div className="flex items-start gap-3">
-          <div className="p-2.5 bg-[#006591] text-white rounded-xl shrink-0 mt-0.5">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-slate-900 text-xs sm:text-sm">
-                Règle Obligatoire de Validation des Plannings
+      {/* SECTION 1: CALENDRIER AVEC BANDEAU COLLÉ */}
+      <section className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-0">
+        {/* Bandeau collé au calendrier avec nom du mois, nav, filtre infirmier & filtre tournée tout à droite */}
+        <div className="bg-slate-900 text-white p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800">
+          {/* Left: Nom du mois + Boutons de navigation */}
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-sky-500/20 text-sky-300 rounded-xl border border-sky-400/30 shrink-0">
+              <CalendarDays className="w-5 h-5" />
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <h3 className="text-base sm:text-lg font-bold text-white min-w-[130px]">
+                {MONTH_NAMES[selectedMonth]} {selectedYear}
               </h3>
-              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full uppercase">
-                Validation Nominative IDEL
-              </span>
+              <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
+                <button
+                  onClick={handlePrevMonth}
+                  className="p-1.5 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors cursor-pointer"
+                  title="Mois Précédent"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => { setSelectedYear(2026); setSelectedMonth(7); }}
+                  className="px-2.5 py-1 bg-[#006591] hover:bg-sky-600 text-white font-bold text-xs rounded-lg shadow-2xs cursor-pointer"
+                >
+                  Aujourd'hui
+                </button>
+                <button
+                  onClick={handleNextMonth}
+                  className="p-1.5 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors cursor-pointer"
+                  title="Mois Suivant"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-            <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-              <strong>Qu'est-ce que le statut de validation ?</strong> Un planning ou une garde émise par le cabinet ne peut jamais être autovalidée par un gérant. Elle est obligatoirement transmise en statut <em>En attente (PENDING)</em> et doit être <strong>personnellement approuvée et validée par l'infirmier(e) concerné(e)</strong> pour être confirmée.
-            </p>
+          </div>
+
+          {/* Right: Filtre Infirmier & Filtre Tournée (Tout à droite) */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Filtre par Infirmier */}
+            <div className="flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
+              <User className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+              <select
+                value={nurseFilter}
+                onChange={(e) => setNurseFilter(e.target.value)}
+                className="bg-transparent text-xs font-bold text-white cursor-pointer focus:outline-none"
+              >
+                <option value="ALL" className="text-slate-900">Tous les Infirmiers</option>
+                {DEMO_USERS.filter(u => u.role === 'NURSE').map(u => (
+                  <option key={u.id} value={u.id} className="text-slate-900">{u.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filtre des Tournées tout à droite */}
+            <div className="flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
+              <Filter className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+              <select
+                value={tourneeFilter}
+                onChange={(e) => setTourneeFilter(e.target.value)}
+                className="bg-transparent text-xs font-bold text-white cursor-pointer focus:outline-none max-w-[180px] truncate"
+              >
+                <option value="ALL" className="text-slate-900">Toutes les Tournées</option>
+                {availableTournees.map(col => (
+                  <option key={col.id} value={col.title} className="text-slate-900">
+                    {col.title}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* VIEW MODE 1: MONTHLY CALENDAR GRID */}
-      {viewMode === 'GRID' && (
-        <div className="space-y-6">
-          {/* Month Navigation & Title Header */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-sky-50 text-[#006591] rounded-xl border border-sky-100">
-                <CalendarDays className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <span>{MONTH_NAMES[selectedMonth]} {selectedYear}</span>
-                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                    Vue Mois par Mois
-                  </span>
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Vue d'ensemble avec affectation nominative des infirmièr(e)s sur chaque garde.
-                </p>
-              </div>
+        {/* Full Month Visual Calendar Grid */}
+        <div className="bg-white overflow-hidden">
+          {/* Calendar Weekday Headers */}
+          <div className="grid grid-cols-7 bg-slate-800 text-white text-[11px] sm:text-xs font-bold py-2.5 text-center divide-x divide-slate-700">
+            <div><span className="hidden sm:inline">Lundi</span><span className="sm:hidden">Lun</span></div>
+            <div><span className="hidden sm:inline">Mardi</span><span className="sm:hidden">Mar</span></div>
+            <div><span className="hidden sm:inline">Mercredi</span><span className="sm:hidden">Mer</span></div>
+            <div><span className="hidden sm:inline">Jeudi</span><span className="sm:hidden">Jeu</span></div>
+            <div><span className="hidden sm:inline">Vendredi</span><span className="sm:hidden">Ven</span></div>
+            <div className="text-sky-300"><span className="hidden sm:inline">Samedi</span><span className="sm:hidden">Sam</span></div>
+            <div className="text-sky-300"><span className="hidden sm:inline">Dimanche</span><span className="sm:hidden">Dim</span></div>
+          </div>
+
+          {/* Days Grid */}
+          <div 
+            className="grid grid-cols-7 divide-x divide-y divide-slate-200 bg-slate-50/50 select-none"
+            onMouseLeave={() => setIsMouseDownGrid(false)}
+            onMouseUp={() => setIsMouseDownGrid(false)}
+          >
+            {gridCells.map((cell, idx) => {
+              const dayShifts = shiftsByDate[cell.dateStr] || [];
+              const isMultiSelected = selectedMultiDates.includes(cell.dateStr);
+
+              return (
+                <div
+                  key={cell.dateStr + '-' + idx}
+                  onMouseDown={() => handleDayCellMouseDown(cell.dateStr, cell.isCurrentMonth)}
+                  onMouseEnter={() => handleDayCellMouseEnter(cell.dateStr, cell.isCurrentMonth)}
+                  onClick={() => {
+                    if (cell.isCurrentMonth && selectedMultiDates.length === 0) {
+                      setSelectedDayDateStr(cell.dateStr);
+                    }
+                  }}
+                  className={`min-h-[85px] sm:min-h-[120px] p-1.5 sm:p-2 flex flex-col justify-start transition-all cursor-pointer group relative ${
+                    isMultiSelected
+                      ? 'bg-sky-200/90 ring-2 ring-[#006591] z-10 shadow-md'
+                      : !cell.isCurrentMonth
+                      ? 'bg-slate-100/60 opacity-40 cursor-not-allowed'
+                      : cell.isWeekend
+                      ? 'bg-sky-50/20 hover:bg-sky-100/50'
+                      : 'bg-white hover:bg-sky-50/50'
+                  }`}
+                >
+                  {/* Day Header Row */}
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`text-xs font-extrabold px-1.5 py-0.5 rounded-md ${
+                      cell.dateStr === '2026-08-03' 
+                        ? 'bg-[#006591] text-white shadow-xs' 
+                        : cell.isCurrentMonth ? 'text-slate-700 group-hover:text-[#006591]' : 'text-slate-400'
+                    }`}>
+                      {cell.dayNumber}
+                    </span>
+
+                    {cell.isCurrentMonth && (
+                      <div className="flex items-center gap-1">
+                        {dayShifts.length > 0 ? (
+                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded-md">
+                            {dayShifts.length}
+                          </span>
+                        ) : (
+                          <span className="opacity-0 group-hover:opacity-100 text-[10px] font-bold text-[#006591] bg-sky-100 px-1 rounded transition-opacity">
+                            +
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Nurse Shifts Cards on this Day */}
+                  <div className="space-y-1 sm:space-y-1.5 flex-1">
+                    {dayShifts.map(({ shift, calendar, nurseName, nurseAvatar, tourneeTag }) => {
+                      let statusBg = 'bg-sky-50 border-sky-200 text-sky-900';
+                      let statusBadgeText = 'En attente';
+                      let statusIcon = <Clock className="w-3 h-3 text-sky-600" />;
+
+                      if (shift.status === 'ACCEPTED') {
+                        statusBg = 'bg-emerald-50 border-emerald-300 text-emerald-950';
+                        statusBadgeText = 'Validé';
+                        statusIcon = <CheckCircle2 className="w-3 h-3 text-emerald-600" />;
+                      } else if (shift.status === 'REJECTED') {
+                        statusBg = 'bg-rose-50 border-rose-300 text-rose-950';
+                        statusBadgeText = 'Refusé';
+                        statusIcon = <XCircle className="w-3 h-3 text-rose-600" />;
+                      } else if (shift.status === 'PROPOSED_ALTERNATIVE') {
+                        statusBg = 'bg-amber-50 border-amber-300 text-amber-950';
+                        statusBadgeText = `Alt`;
+                        statusIcon = <RotateCcw className="w-3 h-3 text-amber-600" />;
+                      }
+
+                      return (
+                        <div
+                          key={shift.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveShiftDetail({ shift, calendar, nurseName, nurseAvatar });
+                          }}
+                          className={`p-1 sm:p-1.5 rounded-xl border shadow-2xs hover:shadow-md transition-all cursor-pointer text-xs ${statusBg}`}
+                          title={`Garde de ${nurseName} pour ${calendar.tourneeName}`}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-wider px-1 rounded bg-black/10 text-slate-800 truncate max-w-[60px]">
+                              {tourneeTag}
+                            </span>
+                            <div className="hidden sm:flex items-center gap-1 font-extrabold text-[10px]">
+                              {statusIcon}
+                              <span className="truncate">{statusBadgeText}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <img
+                              src={nurseAvatar}
+                              alt={nurseName}
+                              className="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover border border-white shrink-0"
+                            />
+                            <span className="font-bold text-[10px] sm:text-xs truncate leading-tight">
+                              {nurseName}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Floating Multi-Day Assignment Bar */}
+      {selectedMultiDates.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] bg-[#131b2e] text-white p-4 rounded-2xl shadow-2xl border border-sky-400 flex flex-col sm:flex-row items-center gap-3.5 max-w-2xl w-[94vw]">
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="w-9 h-9 rounded-full bg-sky-500 text-white font-black text-sm flex items-center justify-center shadow-inner">
+              {selectedMultiDates.length}
             </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handlePrevMonth}
-                className="flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                <span>Mois Précédent</span>
-              </button>
-              <button
-                onClick={() => { setSelectedYear(2026); setSelectedMonth(7); }}
-                className="px-3 py-2 bg-sky-100 hover:bg-sky-200 text-[#006591] rounded-xl text-xs font-bold transition-all cursor-pointer"
-              >
-                Aujourd'hui
-              </button>
-              <button
-                onClick={handleNextMonth}
-                className="flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
-              >
-                <span>Mois Suivant</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
+            <div>
+              <h4 className="font-bold text-xs">Jours sélectionnés</h4>
+              <p className="text-[11px] text-sky-200">Glisser-déposer pour affecter plusieurs jours</p>
             </div>
           </div>
 
-          {/* Nurse Workload & Status Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {nurseWorkloadList.map(nurse => (
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full">
+            <select
+              value={multiSelectNurseId}
+              onChange={e => setMultiSelectNurseId(e.target.value)}
+              className="bg-slate-800 text-white text-xs font-bold p-2 rounded-xl border border-slate-700 outline-none flex-1"
+            >
+              <option value="nurse-julie">Julie R.</option>
+              <option value="nurse-marc">Marc V.</option>
+              <option value="nurse-sophie">Sophie L.</option>
+            </select>
+
+            <select
+              value={multiSelectTourneeName}
+              onChange={e => setMultiSelectTourneeName(e.target.value)}
+              className="bg-slate-800 text-white text-xs font-bold p-2 rounded-xl border border-slate-700 outline-none flex-1"
+            >
+              <option value="Tournée Matin">Tournée Matin</option>
+              <option value="Tournée Soir">Tournée Soir</option>
+              <option value="Tournée Garde Cabinet">Tournée Garde Cabinet</option>
+            </select>
+
+            <button
+              onClick={handleApplyMultiSelection}
+              className="px-4 py-2 bg-[#006591] hover:bg-sky-500 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer whitespace-nowrap transition-all active:scale-95"
+            >
+              Affecter l'infirmier
+            </button>
+
+            <button
+              onClick={() => setSelectedMultiDates([])}
+              className="p-2 text-slate-400 hover:text-white rounded-xl cursor-pointer"
+              title="Annuler la sélection"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* SECTION 2: LA LISTE DES INFIRMIERS COMME C'EST */}
+      <section className="space-y-3">
+        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+          <User className="w-4 h-4 text-[#006591]" />
+          <span>Équipe d'Infirmiers & Gardes ({nurseWorkloadList.length})</span>
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {nurseWorkloadList.map(nurse => {
+            const isSelected = nurse.calendarId === selectedCalendarId;
+            return (
               <div
                 key={nurse.nurseId}
-                onClick={() => {
-                  setSelectedCalendarId(nurse.calendarId);
-                  setViewMode('LIST');
-                }}
-                className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:border-[#006591] hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+                onClick={() => setSelectedCalendarId(nurse.calendarId)}
+                className={`bg-white p-4 rounded-2xl border shadow-xs transition-all cursor-pointer flex flex-col justify-between ${
+                  isSelected
+                    ? 'border-[#006591] ring-2 ring-[#006591]/20 shadow-md'
+                    : 'border-slate-200 hover:border-[#006591]'
+                }`}
               >
                 <div className="flex items-center gap-3">
                   <img
@@ -987,538 +1187,79 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-
-          {/* Sub-view switcher for Mobile & Desktop */}
-          <div className="flex items-center justify-between gap-3 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setMobileSubView('GRID')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  mobileSubView === 'GRID'
-                    ? 'bg-white text-[#006591] shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Grid className="w-3.5 h-3.5" />
-                <span>Grille Mensuelle</span>
-              </button>
-              <button
-                onClick={() => setMobileSubView('AGENDA')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  mobileSubView === 'AGENDA'
-                    ? 'bg-white text-[#006591] shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <List className="w-3.5 h-3.5" />
-                <span>Agenda Mobile (Jour par Jour)</span>
-              </button>
-            </div>
-
-            <p className="hidden md:block text-[11px] text-slate-500 font-medium pr-2">
-              💡 Cliquez sur n'importe quel jour pour y planifier un infirmier et sa tournée.
-            </p>
-          </div>
-
-          {/* Full Month Visual Calendar Grid */}
-          {mobileSubView === 'GRID' ? (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              {/* Calendar Weekday Headers */}
-              <div className="grid grid-cols-7 bg-slate-800 text-white text-[11px] sm:text-xs font-bold py-2.5 text-center divide-x divide-slate-700">
-                <div><span className="hidden sm:inline">Lundi</span><span className="sm:hidden">Lun</span></div>
-                <div><span className="hidden sm:inline">Mardi</span><span className="sm:hidden">Mar</span></div>
-                <div><span className="hidden sm:inline">Mercredi</span><span className="sm:hidden">Mer</span></div>
-                <div><span className="hidden sm:inline">Jeudi</span><span className="sm:hidden">Jeu</span></div>
-                <div><span className="hidden sm:inline">Vendredi</span><span className="sm:hidden">Ven</span></div>
-                <div className="text-sky-300"><span className="hidden sm:inline">Samedi</span><span className="sm:hidden">Sam</span></div>
-                <div className="text-sky-300"><span className="hidden sm:inline">Dimanche</span><span className="sm:hidden">Dim</span></div>
-              </div>
-
-              {/* Days Grid */}
-              <div className="grid grid-cols-7 divide-x divide-y divide-slate-200 bg-slate-50/50">
-                {gridCells.map((cell, idx) => {
-                  const dayShifts = shiftsByDate[cell.dateStr] || [];
-
-                  return (
-                    <div
-                      key={cell.dateStr + '-' + idx}
-                      onClick={() => {
-                        if (cell.isCurrentMonth) {
-                          setSelectedDayDateStr(cell.dateStr);
-                        }
-                      }}
-                      className={`min-h-[85px] sm:min-h-[120px] p-1.5 sm:p-2 flex flex-col justify-start transition-all cursor-pointer group hover:bg-sky-50/50 relative ${
-                        !cell.isCurrentMonth
-                          ? 'bg-slate-100/60 opacity-40 cursor-not-allowed'
-                          : cell.isWeekend
-                          ? 'bg-sky-50/20'
-                          : 'bg-white'
-                      }`}
-                    >
-                      {/* Day Header Row */}
-                      <div className="flex items-center justify-between mb-1">
-                        <span className={`text-xs font-extrabold px-1.5 py-0.5 rounded-md ${
-                          cell.dateStr === '2026-08-03' 
-                            ? 'bg-[#006591] text-white shadow-xs' 
-                            : cell.isCurrentMonth ? 'text-slate-700 group-hover:text-[#006591]' : 'text-slate-400'
-                        }`}>
-                          {cell.dayNumber}
-                        </span>
-
-                        {cell.isCurrentMonth && (
-                          <div className="flex items-center gap-1">
-                            {dayShifts.length > 0 ? (
-                              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded-md">
-                                {dayShifts.length}
-                              </span>
-                            ) : (
-                              <span className="opacity-0 group-hover:opacity-100 text-[10px] font-bold text-[#006591] bg-sky-100 px-1 rounded transition-opacity">
-                                +
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Nurse Shifts Cards on this Day */}
-                      <div className="space-y-1 sm:space-y-1.5 flex-1">
-                        {dayShifts.map(({ shift, calendar, nurseName, nurseAvatar, tourneeTag }) => {
-                          let statusBg = 'bg-sky-50 border-sky-200 text-sky-900';
-                          let statusBadgeText = 'En attente';
-                          let statusIcon = <Clock className="w-3 h-3 text-sky-600" />;
-
-                          if (shift.status === 'ACCEPTED') {
-                            statusBg = 'bg-emerald-50 border-emerald-300 text-emerald-950';
-                            statusBadgeText = 'Validé';
-                            statusIcon = <CheckCircle2 className="w-3 h-3 text-emerald-600" />;
-                          } else if (shift.status === 'REJECTED') {
-                            statusBg = 'bg-rose-50 border-rose-300 text-rose-950';
-                            statusBadgeText = 'Refusé';
-                            statusIcon = <XCircle className="w-3 h-3 text-rose-600" />;
-                          } else if (shift.status === 'PROPOSED_ALTERNATIVE') {
-                            statusBg = 'bg-amber-50 border-amber-300 text-amber-950';
-                            statusBadgeText = `Alt`;
-                            statusIcon = <RotateCcw className="w-3 h-3 text-amber-600" />;
-                          }
-
-                          return (
-                            <div
-                              key={shift.id}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveShiftDetail({ shift, calendar, nurseName, nurseAvatar });
-                              }}
-                              className={`p-1 sm:p-1.5 rounded-xl border shadow-2xs hover:shadow-md transition-all cursor-pointer text-xs ${statusBg}`}
-                              title={`Garde de ${nurseName} pour ${calendar.tourneeName}`}
-                            >
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-wider px-1 rounded bg-black/10 text-slate-800 truncate max-w-[60px]">
-                                  {tourneeTag}
-                                </span>
-                                <div className="hidden sm:flex items-center gap-1 font-extrabold text-[10px]">
-                                  {statusIcon}
-                                  <span className="truncate">{statusBadgeText}</span>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-1 mt-0.5">
-                                <img
-                                  src={nurseAvatar}
-                                  alt={nurseName}
-                                  className="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover border border-white shrink-0"
-                                />
-                                <span className="font-bold text-[10px] sm:text-xs truncate leading-tight">
-                                  {nurseName}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            /* AGENDA VIEW: Mobile-Optimized Chronological List */
-            <div className="space-y-3">
-              <div className="bg-sky-50 border border-sky-200 p-3 rounded-xl text-xs text-[#006591] font-semibold flex items-center gap-2">
-                <Info className="w-4 h-4 shrink-0" />
-                <span>Vue Agenda Mobile : Défilement fluide jour par jour. Touchez un jour pour y planifier une garde.</span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {gridCells.filter(cell => cell.isCurrentMonth).map(cell => {
-                  const dayShifts = shiftsByDate[cell.dateStr] || [];
-                  const dateFormatted = new Date(cell.dateStr).toLocaleDateString('fr-FR', {
-                    weekday: 'long',
-                    day: 'numeric',
-                    month: 'long'
-                  });
-
-                  return (
-                    <div
-                      key={'agenda-' + cell.dateStr}
-                      className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs hover:border-[#006591] transition-all flex flex-col justify-between gap-3"
-                    >
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-1 bg-[#006591] text-white font-extrabold text-xs rounded-lg shadow-2xs">
-                            {cell.dayNumber}
-                          </span>
-                          <span className="font-bold text-slate-800 text-sm capitalize">
-                            {dateFormatted}
-                          </span>
-                        </div>
-
-                        <span className="text-xs font-semibold text-slate-400">
-                          {dayShifts.length} garde(s)
-                        </span>
-                      </div>
-
-                      {/* Shifts List for this day */}
-                      <div className="space-y-2">
-                        {dayShifts.length === 0 ? (
-                          <p className="text-xs text-slate-400 italic py-1">
-                            Aucune garde planifiée pour ce jour.
-                          </p>
-                        ) : (
-                          dayShifts.map(({ shift, calendar, nurseName, nurseAvatar, tourneeTag }) => (
-                            <div
-                              key={'agenda-shift-' + shift.id}
-                              onClick={() => setActiveShiftDetail({ shift, calendar, nurseName, nurseAvatar })}
-                              className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-2 hover:border-[#006591] cursor-pointer"
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <img
-                                  src={nurseAvatar}
-                                  alt={nurseName}
-                                  className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
-                                />
-                                <div className="min-w-0">
-                                  <p className="font-bold text-slate-900 text-xs truncate">{nurseName}</p>
-                                  <p className="text-[10px] text-slate-500 font-semibold truncate">{tourneeTag} • {calendar.tourneeName.split('-')[0]}</p>
-                                </div>
-                              </div>
-
-                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                                shift.status === 'ACCEPTED' ? 'bg-emerald-100 text-emerald-800' : 'bg-sky-100 text-sky-800'
-                              }`}>
-                                {shift.status === 'ACCEPTED' ? 'Validé' : 'En attente'}
-                              </span>
-                            </div>
-                          ))
-                        )}
-                      </div>
-
-                      <button
-                        onClick={() => setSelectedDayDateStr(cell.dateStr)}
-                        className="w-full flex items-center justify-center gap-1.5 py-2 bg-sky-50 hover:bg-sky-100 text-[#006591] font-bold text-xs rounded-xl border border-sky-200/80 transition-all cursor-pointer active:scale-98"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>+ Planifier un infirmier pour le {cell.dayNumber}</span>
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+            );
+          })}
         </div>
-      )}
+      </section>
 
-      {/* VIEW MODE 2: DETAILED NEGOTIATION & LIST VIEW */}
-      {viewMode === 'LIST' && (
-      /* Main Grid: Sidebar List of Calendars + Selected Calendar View */
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left Column: Calendar List (4 cols) */}
-        <div className="lg:col-span-4 space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 px-1">
-            Plannings en cours ({filteredCalendars.length})
-          </h3>
+      {/* SECTION 3: CHAT */}
+      <section className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-sky-100 text-[#006591] rounded-xl">
+              <MessageSquare className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-base">
+                Chat & Négociation {activeCalendar ? `(${activeCalendar.nurseName})` : ''}
+              </h3>
+              <p className="text-xs text-slate-500">
+                Échangez en direct concernant les gardes, remplacements et disponibilités.
+              </p>
+            </div>
+          </div>
+        </div>
 
-          <div className="space-y-3">
-            {filteredCalendars.map(cal => {
-              const isSelected = cal.id === selectedCalendarId;
-              const totalShifts = cal.shifts.length;
-              const acceptedShifts = cal.shifts.filter(s => s.status === 'ACCEPTED').length;
-
-              return (
-                <div
-                  key={cal.id}
-                  onClick={() => setSelectedCalendarId(cal.id)}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${
-                    isSelected
-                      ? 'bg-white border-[#006591] shadow-md ring-2 ring-[#006591]/20'
-                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span className="text-[11px] font-extrabold text-[#006591] uppercase tracking-wide">
-                        {cal.tourneeName}
+        {activeCalendar ? (
+          <div className="space-y-4">
+            <div className="space-y-2.5 max-h-72 overflow-y-auto p-4 bg-slate-50 rounded-xl border border-slate-200">
+              {activeCalendar.messages.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-4">Aucun message pour l'instant.</p>
+              ) : (
+                activeCalendar.messages.map(msg => (
+                  <div
+                    key={msg.id}
+                    className={`p-3 rounded-xl text-xs space-y-1 ${
+                      msg.senderId === currentUser.id
+                        ? 'bg-sky-50 text-sky-950 border border-sky-200 ml-8'
+                        : 'bg-white text-slate-800 border border-slate-200 mr-8'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between font-bold text-[11px] text-slate-700">
+                      <span>{msg.senderName} ({msg.senderRole === 'PARTNER' ? 'Gérant' : 'Infirmier'})</span>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
-                      <h4 className="font-bold text-slate-900 text-sm mt-0.5">{cal.title}</h4>
                     </div>
-                    {getCalendarStatusBadge(cal.status)}
+                    <p className="leading-relaxed text-slate-800">{msg.content}</p>
                   </div>
+                ))
+              )}
+            </div>
 
-                  <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs text-slate-600">
-                    <img
-                      src={cal.nurseAvatar}
-                      alt={cal.nurseName}
-                      className="w-6 h-6 rounded-full object-cover border border-slate-200"
-                    />
-                    <span className="font-semibold text-slate-800">{cal.nurseName}</span>
-                    <span className="text-slate-300">•</span>
-                    <span className="text-slate-500 font-medium">{acceptedShifts}/{totalShifts} gardes valides</span>
-                  </div>
-                </div>
-              );
-            })}
+            <form onSubmit={handleSendMessage} className="flex gap-2">
+              <input
+                type="text"
+                placeholder={`Écrivez un message à ${activeCalendar.nurseName}...`}
+                value={replyMessage}
+                onChange={(e) => setReplyMessage(e.target.value)}
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#006591]"
+              />
+              <button
+                type="submit"
+                className="bg-[#006591] hover:bg-[#004d70] text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-2 shrink-0 active:scale-95"
+              >
+                <Send className="w-4 h-4" />
+                <span>Envoyer</span>
+              </button>
+            </form>
           </div>
-        </div>
-
-        {/* Right Column: Negotiation & Calendar View (8 cols) */}
-        <div className="lg:col-span-8 space-y-6">
-          {activeCalendar ? (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-6">
-              
-              {/* Calendar Detail Top Banner */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-200">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 bg-sky-100 text-sky-800 font-extrabold text-[10px] uppercase rounded-md">
-                      {activeCalendar.tourneeName}
-                    </span>
-                    {getCalendarStatusBadge(activeCalendar.status)}
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900 mt-1">{activeCalendar.title}</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Transmis par <span className="font-semibold text-slate-700">{activeCalendar.partnerName}</span> à <span className="font-semibold text-slate-700">{activeCalendar.nurseName}</span>
-                  </p>
-                </div>
-
-                {/* Role Specific Top Action */}
-                {currentUser.role === 'NURSE' && currentUser.name === activeCalendar.nurseName && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleNurseAcceptAll}
-                      className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer active:scale-95"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Tout Accepter (1 Clic)</span>
-                    </button>
-                  </div>
-                )}
-
-                {currentUser.role === 'PARTNER' && activeCalendar.status === 'IN_REVIEW' && (
-                  <button
-                    onClick={handlePartnerConfirmSchedule}
-                    className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer active:scale-95"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Valider & Verrouiller le Planning</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Shifts List / Interactive Negotiation Table */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                    <CalendarDays className="w-4 h-4 text-[#006591]" />
-                    <span>Gardes & Plages Horaires Proposées ({activeCalendar.shifts.length} jours)</span>
-                  </h4>
-                  <span className="text-xs text-slate-500">
-                    {currentUser.role === 'NURSE' && currentUser.name === activeCalendar.nurseName 
-                      ? "Cochez pour valider, décochez pour refuser ou proposer une date alternative."
-                      : "Aperçu des choix et commentaires de l'infirmier(e)."}
-                  </span>
-                </div>
-
-                <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-slate-50/50">
-                  {activeCalendar.shifts.map((shift, idx) => {
-                    const isNurseOwner = currentUser.role === 'NURSE' && currentUser.name === activeCalendar.nurseName;
-                    const isAccepted = shift.status === 'ACCEPTED';
-                    const isRejected = shift.status === 'REJECTED';
-                    const isProposed = shift.status === 'PROPOSED_ALTERNATIVE';
-
-                    return (
-                      <div key={shift.id} className="p-4 bg-white space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          
-                          {/* Left: Date & Day Badge */}
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex flex-col items-center justify-center font-bold text-slate-800 text-xs">
-                              <span>Jour</span>
-                              <span className="text-[#006591] font-black">{idx + 1}</span>
-                            </div>
-                            <div>
-                              <p className="font-bold text-slate-900 text-sm">{shift.date}</p>
-                              <p className="text-[11px] text-slate-500">Garde de Journée (08:00 - 18:00)</p>
-                            </div>
-                          </div>
-
-                          {/* Right: Status or Nurse Interactive Switch */}
-                          <div className="flex items-center gap-2">
-                            {getShiftBadge(shift.status, shift.proposedDate)}
-
-                            {/* Nurse Quick Actions */}
-                            {isNurseOwner && (
-                              <div className="flex items-center gap-1.5 ml-2">
-                                <button
-                                  onClick={() => handleNurseToggleShift(shift.id, 'ACCEPTED')}
-                                  title="Accepter cette garde"
-                                  className={`p-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-all ${
-                                    isAccepted ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700'
-                                  }`}
-                                >
-                                  <Check className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleNurseToggleShift(shift.id, 'REJECTED')}
-                                  title="Refuser cette garde"
-                                  className={`p-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-all ${
-                                    isRejected ? 'bg-rose-600 text-white border-rose-600' : 'bg-slate-100 text-slate-600 hover:bg-rose-50 hover:text-rose-700'
-                                  }`}
-                                >
-                                  <XCircle className="w-4 h-4" />
-                                </button>
-                              </div>
-                            )}
-
-                            {/* Partner Action: Accept Alternative Date */}
-                            {currentUser.role === 'PARTNER' && isProposed && (
-                              <button
-                                onClick={() => handlePartnerAcceptAlternative(shift.id)}
-                                className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-all cursor-pointer shadow-xs"
-                              >
-                                Valider Date Alternative ({shift.proposedDate})
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Additional Counter-Proposal controls for Nurse */}
-                        {isNurseOwner && (
-                          <div className="pt-2 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                            <div>
-                              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                                Date alternative (Optionnel) :
-                              </label>
-                              <input
-                                type="date"
-                                value={shift.proposedDate || ''}
-                                onChange={(e) => handleNurseUpdateProposedDate(shift.id, e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-[#006591]"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                                Commentaire / Motif :
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="Ex: Formation, impératif familial..."
-                                value={shift.nurseComment || ''}
-                                onChange={(e) => handleNurseUpdateComment(shift.id, e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#006591]"
-                              />
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Comment display for non-owner viewing */}
-                        {!isNurseOwner && shift.nurseComment && (
-                          <div className="pt-2 border-t border-slate-100 text-xs text-slate-600 flex items-center gap-1.5 bg-slate-50 p-2 rounded-lg">
-                            <Info className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                            <span><strong className="text-slate-800">Note :</strong> {shift.nurseComment}</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Nurse Submit Response Action */}
-                {currentUser.role === 'NURSE' && currentUser.name === activeCalendar.nurseName && (
-                  <div className="flex justify-end pt-2">
-                    <button
-                      onClick={handleSubmitNurseResponse}
-                      className="flex items-center gap-2 bg-[#006591] hover:bg-[#004d70] text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer active:scale-95"
-                    >
-                      <Send className="w-4 h-4" />
-                      <span>Transmettre ma réponse au gérant</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Messaging & Discussion Section */}
-              <div className="pt-4 border-t border-slate-200 space-y-3">
-                <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-[#006591]" />
-                  <span>Discussion de Négociation</span>
-                </h4>
-
-                <div className="space-y-2.5 max-h-60 overflow-y-auto p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  {activeCalendar.messages.length === 0 ? (
-                    <p className="text-xs text-slate-400 text-center py-3">Aucun message échangé.</p>
-                  ) : (
-                    activeCalendar.messages.map(msg => (
-                      <div
-                        key={msg.id}
-                        className={`p-3 rounded-xl text-xs space-y-1 ${
-                          msg.senderId === currentUser.id
-                            ? 'bg-sky-50 text-sky-950 border border-sky-200 ml-6'
-                            : 'bg-white text-slate-800 border border-slate-200 mr-6'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between font-bold text-[11px] text-slate-700">
-                          <span>{msg.senderName} ({msg.senderRole === 'PARTNER' ? 'Gérant' : 'Infirmier'})</span>
-                          <span className="text-[10px] text-slate-400 font-normal">
-                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                        <p className="leading-relaxed text-slate-800">{msg.content}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Reply Form */}
-                <form onSubmit={handleSendMessage} className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Écrivez un message concernant cette négociation..."
-                    value={replyMessage}
-                    onChange={(e) => setReplyMessage(e.target.value)}
-                    className="flex-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#006591]"
-                  />
-                  <button
-                    type="submit"
-                    className="bg-[#006591] hover:bg-[#004d70] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                  >
-                    Envoyer
-                  </button>
-                </form>
-              </div>
-
-            </div>
-          ) : (
-            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400 text-xs">
-              Sélectionnez un planning à gauche pour afficher les détails.
-            </div>
-          )}
-        </div>
-
-      </div>
-      )}
+        ) : (
+          <p className="text-xs text-slate-400 py-4 text-center">
+            Sélectionnez un infirmier dans la liste ci-dessus pour ouvrir le chat.
+          </p>
+        )}
+      </section>
 
       {/* Modal: Shift Detail Quick Actions */}
       {activeShiftDetail && (

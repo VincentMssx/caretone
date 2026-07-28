@@ -1,14 +1,7 @@
 import React, { useState } from 'react';
 import { Patient, MedicalAlert, NavView } from '../types';
-import { PageVoiceMicButton } from '../components/PageVoiceMicButton';
 import { 
-  AlertTriangle, 
   Search, 
-  PhoneCall, 
-  ArrowRight, 
-  Plus, 
-  CheckCircle2, 
-  User, 
   Clock,
   ChevronRight
 } from 'lucide-react';
@@ -24,11 +17,8 @@ interface AccueilViewProps {
 
 export const AccueilView: React.FC<AccueilViewProps> = ({
   patients,
-  alerts,
   onSelectPatient,
   onNavigate,
-  onStartVoiceTransmission,
-  onOpenNewCare
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -39,37 +29,6 @@ export const AccueilView: React.FC<AccueilViewProps> = ({
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
-      {/* Priority Alerts Widget */}
-      <div className="bg-red-50/60 border-2 border-l-4 border-l-red-600 border-red-200/80 p-5 md:p-6 rounded-2xl flex flex-col gap-4 shadow-sm">
-        <div className="flex items-center gap-2 text-red-600">
-          <AlertTriangle className="w-5 h-5 animate-pulse" />
-          <h2 className="text-lg font-bold">Alertes Prioritaires</h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {alerts.map((alert) => (
-            <div 
-              key={alert.id}
-              className="flex justify-between items-center bg-white/90 p-3.5 rounded-xl border border-red-100 shadow-sm"
-            >
-              <div className="flex flex-col">
-                <span className="font-bold text-slate-800 text-sm">{alert.title}</span>
-                <span className="text-red-600 font-semibold text-xs mt-0.5">{alert.value}</span>
-              </div>
-              <button
-                onClick={() => {
-                  const found = patients.find(p => p.id === alert.patientId);
-                  if (found) onSelectPatient(found);
-                }}
-                className="bg-red-600 hover:bg-red-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-              >
-                {alert.actionType === 'intervenir' ? 'Intervenir' : 'Appeler'}
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Search Input */}
       <section className="relative w-full">
         <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -132,19 +91,6 @@ export const AccueilView: React.FC<AccueilViewProps> = ({
           })}
         </div>
       </section>
-
-      {/* Voice Assistant Button for Accueil */}
-      <PageVoiceMicButton
-        pageTitle="Accueil & Soins du Jour"
-        placeholderExamples={[
-          "Rechercher le patient Jean Dupont",
-          "Valider le soin de 08:30 pour M. Bernard",
-          "Filtrer sur les alertes prioritaires du matin"
-        ]}
-        onVoiceCommand={(cmd) => {
-          setSearchQuery(cmd);
-        }}
-      />
     </div>
   );
 };

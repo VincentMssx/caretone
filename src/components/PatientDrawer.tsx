@@ -11,7 +11,8 @@ import {
   FileText,
   Clock,
   Phone,
-  UserCheck
+  UserCheck,
+  Stethoscope
 } from 'lucide-react';
 
 interface PatientDrawerProps {
@@ -20,6 +21,7 @@ interface PatientDrawerProps {
   onClose: () => void;
   onViewFullDossier: (patientId: string) => void;
   onStartVoiceForPatient: (patient: Patient) => void;
+  onOpenDoctorInfo?: (doctorName: string) => void;
 }
 
 export const PatientDrawer: React.FC<PatientDrawerProps> = ({
@@ -27,7 +29,8 @@ export const PatientDrawer: React.FC<PatientDrawerProps> = ({
   isOpen,
   onClose,
   onViewFullDossier,
-  onStartVoiceForPatient
+  onStartVoiceForPatient,
+  onOpenDoctorInfo
 }) => {
   if (!patient || !isOpen) return null;
 
@@ -93,14 +96,19 @@ export const PatientDrawer: React.FC<PatientDrawerProps> = ({
             </div>
 
             <div className="w-full border-t border-slate-100 pt-3 mt-1 flex justify-around text-xs text-slate-600">
-              <div className="flex items-center gap-1.5">
-                <UserCheck className="w-3.5 h-3.5 text-[#006591]" />
+              <button
+                type="button"
+                onClick={() => onOpenDoctorInfo && onOpenDoctorInfo(patient.doctor)}
+                className="flex items-center gap-1.5 font-bold text-[#006591] hover:underline cursor-pointer"
+                title="Voir la fiche du médecin"
+              >
+                <Stethoscope className="w-3.5 h-3.5 text-[#006591]" />
                 <span>{patient.doctor}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
+              </button>
+              <a href={`tel:${patient.phone.replace(/\s+/g, '')}`} className="flex items-center gap-1.5 hover:underline font-semibold">
                 <Phone className="w-3.5 h-3.5 text-[#006591]" />
                 <span>{patient.phone}</span>
-              </div>
+              </a>
             </div>
           </section>
 

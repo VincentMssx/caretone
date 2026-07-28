@@ -422,24 +422,14 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
             <span className="text-xs text-slate-400">•</span>
             <span className="text-xs text-slate-500 font-semibold">CareTone</span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 mt-1">Carte & Planificateur d'Itinéraire</h1>
+          <h1 className="text-2xl font-bold text-slate-800 mt-1">Trajet</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Calculez votre itinéraire optimal au départ de votre cabinet ou domicile.
+            Planifiez et organisez l'ordre de passage de vos tournées au départ de votre cabinet ou domicile.
           </p>
         </div>
 
         {/* Tour selector & Google Maps Action */}
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={handleOptimizeShortestRoute}
-            disabled={currentTourPatients.length <= 1}
-            title="Calcule l'ordre de passage optimal (TSP) pour minimer les kilomètres à partir de l'adresse de départ tout en respectant les horaires impératifs"
-            className="flex items-center gap-2 bg-gradient-to-r from-[#0ea5e9] to-[#006591] hover:from-[#0284c7] hover:to-[#004c6e] disabled:opacity-50 text-white px-3.5 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer border border-sky-400/30"
-          >
-            <Zap className="w-4 h-4 text-amber-300 animate-pulse" />
-            <span>Recalculer Trajet le plus court</span>
-          </button>
-
           <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200 flex-wrap">
             {tourneeColumns
               .filter(col => col.id !== 'UNASSIGNED')

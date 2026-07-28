@@ -445,187 +445,7 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
         </div>
       </section>
 
-      {/* 2. TOP SECTION: IMPORTANT PATIENT ALERTS (HIGHLIGHT BAR) */}
-      <section className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 bg-rose-100 text-rose-700 rounded-2xl font-bold">
-              <ShieldAlert className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-extrabold text-slate-900 text-base">
-                  Alertes Patients Prioritaires & Incidents
-                </h2>
-                <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 font-black text-xs">
-                  {alerts.length}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                Evénements indésirables, constantes anormales ou vigilance particulière pour la relève
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setIsAddAlertModalOpen(true)}
-            className="flex items-center gap-1.5 bg-[#006591] hover:bg-[#004d70] text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Signaler un Incident Patient</span>
-          </button>
-        </div>
-
-        {/* List of Alerts */}
-        {alerts.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {alerts.map((alert) => {
-              const isCritical = alert.severity === AlertSeverity.CRITICAL;
-              const isHigh = alert.severity === AlertSeverity.HIGH;
-
-              return (
-                <div
-                  key={alert.id}
-                  className={`p-4 rounded-2xl border transition-all space-y-2.5 relative ${
-                    isCritical
-                      ? 'bg-rose-50/80 border-rose-200 text-rose-950 shadow-xs ring-2 ring-rose-300/50'
-                      : isHigh
-                      ? 'bg-amber-50/80 border-amber-200 text-amber-950 shadow-xs'
-                      : 'bg-sky-50/80 border-sky-200 text-sky-950 shadow-xs'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-black text-sm text-slate-900">
-                        {alert.patientName}
-                      </span>
-
-                      {/* Severity Badge */}
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
-                        isCritical
-                          ? 'bg-rose-600 text-white animate-pulse'
-                          : isHigh
-                          ? 'bg-amber-500 text-white'
-                          : 'bg-sky-600 text-white'
-                      }`}>
-                        {isCritical ? (
-                          <>
-                            <Zap className="w-3 h-3 fill-current" /> URGENT
-                          </>
-                        ) : isHigh ? (
-                          <>
-                            <AlertTriangle className="w-3 h-3" /> IMPORTANT
-                          </>
-                        ) : (
-                          <>
-                            <Info className="w-3 h-3" /> À SURVEILLER
-                          </>
-                        )}
-                      </span>
-                    </div>
-
-                    <button
-                      onClick={() => handleDeleteAlert(alert.id)}
-                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-white/60 rounded-lg transition-colors cursor-pointer"
-                      title="Supprimer cette alerte"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  <p className="text-xs leading-relaxed font-medium text-slate-700 bg-white/70 p-2.5 rounded-xl border border-black/5">
-                    {alert.description}
-                  </p>
-
-                  <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500">
-                    <span className="font-semibold text-slate-400">
-                      Enregistré à {new Date(alert.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-
-                    <button
-                      onClick={() => handleInspectPatientClick(alert.patientId, alert.patientName)}
-                      className="flex items-center gap-1 text-[#006591] hover:text-[#004c6e] font-extrabold hover:underline cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs"
-                    >
-                      <User className="w-3 h-3 text-[#006591]" />
-                      <span>Inspecter Fiche Patient</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="bg-slate-50 rounded-2xl p-6 text-center space-y-1.5 border border-dashed border-slate-200">
-            <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto" />
-            <p className="text-xs font-bold text-slate-700">Aucun incident ou alerte spécifique signalé pour cette journée.</p>
-            <p className="text-[11px] text-slate-400">Cliquez sur le bouton ci-dessus pour ajouter un incident marquant le cas échéant.</p>
-          </div>
-        )}
-      </section>
-
-      {/* 3. MIDDLE SECTION: GLOBAL DAILY SUMMARY NOTE (MANUAL NOTE) */}
-      <section className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 bg-sky-100 text-[#006591] rounded-2xl font-bold">
-              <FileText className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="font-extrabold text-slate-900 text-base">
-                Synthèse Globale de la Tournée (Note de Relève)
-              </h2>
-              <p className="text-xs text-slate-500">
-                Consignes écrites transmises entre soignants pour la relève de la garde
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Template Insert Buttons */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden sm:inline">Gabarits :</span>
-            <button
-              onClick={() => handleInsertTemplate("1. TOURNÉE DU MATIN :\n- Soins de routine effectués sans particularité.\n- Constantes stables sur l'ensemble du secteur.")}
-              className="px-2.5 py-1 bg-slate-100 hover:bg-sky-50 hover:text-[#006591] text-slate-700 rounded-lg text-xs font-bold transition-all cursor-pointer border border-slate-200"
-            >
-              + Tournée Matin
-            </button>
-            <button
-              onClick={() => handleInsertTemplate("2. TOURNÉE DU SOIR :\n- Suivi des pansements & traitements de fin de journée ok.\n- Fermeture des piluliers validée.")}
-              className="px-2.5 py-1 bg-slate-100 hover:bg-sky-50 hover:text-[#006591] text-slate-700 rounded-lg text-xs font-bold transition-all cursor-pointer border border-slate-200"
-            >
-              + Tournée Soir
-            </button>
-            <button
-              onClick={() => handleInsertTemplate("⚠️ CONSIGNES RELÈVE DEMAIN :\n- Prévoir bilan sanguin à jeun.\n- Récupérer ordonnance renouvelée au cabinet médecin.")}
-              className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-lg text-xs font-bold transition-all cursor-pointer border border-amber-200"
-            >
-              + Consignes Relève
-            </button>
-          </div>
-        </div>
-
-        {/* Text Area */}
-        <div className="relative">
-          <textarea
-            value={summaryNote}
-            onChange={(e) => handleNoteChange(e.target.value)}
-            placeholder="Rédigez ici la synthèse globale de la tournée, les événements marquants, les consignes pour l'équipe du soir ou de demain..."
-            rows={8}
-            className="w-full bg-slate-50/70 focus:bg-white text-slate-800 text-xs sm:text-sm leading-relaxed p-4 rounded-2xl border border-slate-200 focus:border-[#006591] focus:ring-2 focus:ring-sky-100 outline-none transition-all resize-y font-medium"
-          />
-
-          <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1.5 px-1 font-medium">
-            <span className="flex items-center gap-1 text-emerald-600 font-bold">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Enregistré automatiquement
-            </span>
-            <span>
-              {summaryNote.length} caractères • {summaryNote.trim() ? summaryNote.trim().split(/\s+/).length : 0} mots
-            </span>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. AUDIO HANDOFF SECTION ("BRUT VOCAL") */}
+      {/* 2. RELÈVE VOCALE ("BRUT VOCAL") FIRST */}
       <section className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2.5">
@@ -661,7 +481,7 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
                 Enregistrer une relève vocale
               </h3>
               <p className="text-xs text-slate-500">
-                Dictez les consignes orale de fin de tournée pour l'infirmier(e) qui prend la suite.
+                Dictez les consignes orales de fin de tournée pour l'infirmier(e) qui prend la suite.
               </p>
             </div>
 
@@ -732,7 +552,7 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
                     Relève Vocale Rattachée
                   </div>
                   <div className="text-[11px] text-slate-300">
-                    Durée total : {formatSeconds(voiceNoteDuration)}
+                    Durée totale : {formatSeconds(voiceNoteDuration)}
                   </div>
                 </div>
               </div>
@@ -802,19 +622,47 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
                 </button>
               </div>
             </div>
+          </div>
+        )}
+      </section>
 
-            {/* AI Speech Transcript Box */}
-            <div className="mt-3 p-3 bg-white/10 rounded-xl border border-white/10 text-xs text-sky-100 space-y-1">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-purple-300">
-                <Sparkles className="w-3.5 h-3.5 text-purple-300" />
-                <span>Transcription synthétique IA disponible :</span>
-              </div>
-              <p className="italic text-slate-200 leading-relaxed text-[11px]">
-                "Tournée du matin complétée. Madame Dupont insulinée post-collation à 1.4 g/L. Monsieur Martin essoufflé au lever mais constantes rassurantes à 14/8 mmHg."
+      {/* 3. SYNTHÈSE (EXTRACTION TEXTUELLE DU VOCAL) SECOND */}
+      <section className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 bg-sky-100 text-[#006591] rounded-2xl font-bold">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-extrabold text-slate-900 text-base">
+                Synthèse (Extraction textuelle du vocal)
+              </h2>
+              <p className="text-xs text-slate-500">
+                Transcription et synthèse rédigée automatiquement à partir de l'enregistrement vocal de relève
               </p>
             </div>
           </div>
-        )}
+        </div>
+
+        {/* Text Area */}
+        <div className="relative">
+          <textarea
+            value={summaryNote}
+            onChange={(e) => handleNoteChange(e.target.value)}
+            placeholder="La synthèse apparaîtra ici sous forme d'extraction textuelle de votre relève vocale..."
+            rows={8}
+            className="w-full bg-slate-50/70 focus:bg-white text-slate-800 text-xs sm:text-sm leading-relaxed p-4 rounded-2xl border border-slate-200 focus:border-[#006591] focus:ring-2 focus:ring-sky-100 outline-none transition-all resize-y font-medium"
+          />
+
+          <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1.5 px-1 font-medium">
+            <span className="flex items-center gap-1 text-emerald-600 font-bold">
+              <CheckCircle2 className="w-3.5 h-3.5" /> Enregistré automatiquement
+            </span>
+            <span>
+              {summaryNote.length} caractères • {summaryNote.trim() ? summaryNote.trim().split(/\s+/).length : 0} mots
+            </span>
+          </div>
+        </div>
       </section>
 
       {/* 5. CLEAN HANDOFF SIGN-OFF WORKFLOW (BOTTOM BAR) */}

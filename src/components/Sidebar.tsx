@@ -36,9 +36,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { id: 'accueil' as NavView, label: 'Accueil', icon: LayoutDashboard },
     { id: 'patients' as NavView, label: 'Patients', icon: Users },
+    { id: 'doctors' as NavView, label: 'Professionnels', icon: Stethoscope },
     { id: 'tournee-manager' as NavView, label: 'Tournées', icon: Route },
     { id: 'tournee-scheduling' as NavView, label: 'Planning & Gardes', icon: CalendarDays },
-    { id: 'route-planner' as NavView, label: 'Carte & Trajet', icon: Map },
+    { id: 'route-planner' as NavView, label: 'Trajet', icon: Map },
     { id: 'voice-transmission-hub' as NavView, label: 'Transmission', icon: Mic, activeCheck: isVoiceActive },
     { id: 'cotations' as NavView, label: 'Cotations', icon: Calculator },
     { id: 'messagerie' as NavView, label: 'Messagerie', icon: Mail },
@@ -55,7 +56,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
         <div className="flex flex-col">
           <span className="font-bold text-xl tracking-tight text-white leading-tight">CareTone IDEL</span>
-          <span className="text-xs text-slate-400 font-medium">Logiciel Infirmier</span>
         </div>
       </div>
 

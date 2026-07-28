@@ -2,6 +2,7 @@ export type NavView =
   | 'accueil' 
   | 'patients' 
   | 'patient-detail' 
+  | 'doctors'
   | 'tournee-manager'
   | 'tournee-scheduling'
   | 'route-planner'
@@ -11,6 +12,17 @@ export type NavView =
   | 'messagerie' 
   | 'notes'
   | 'settings';
+
+export interface Doctor {
+  id: string;
+  name: string; // e.g. "Dr. Morel"
+  specialty: string; // e.g. "Médecin Généraliste"
+  phone: string;
+  email?: string;
+  address: string;
+  rppsNumber?: string;
+  notes?: string;
+}
 
 export interface PersonalNote {
   id: string;

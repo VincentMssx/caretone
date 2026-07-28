@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Patient, NavView } from '../types';
-import { PageVoiceMicButton } from '../components/PageVoiceMicButton';
+import { Patient, Doctor } from '../types';
+import { EditPatientModal } from '../components/EditPatientModal';
 import { 
   ArrowLeft, 
   Calendar as CalendarIcon, 
@@ -14,6 +14,7 @@ import {
   PlayCircle,
   FileText,
   Clock,
+  Edit,
   Sparkles
 } from 'lucide-react';
 
@@ -22,15 +23,38 @@ interface PatientDetailViewProps {
   onBack: () => void;
   onStartVoice: (patient: Patient) => void;
   onOpenNewCareNote: (patientId: string) => void;
+  onOpenDoctorInfo?: (doctorName: string) => void;
+  onUpdatePatient?: (updatedPatient: Patient) => void;
+  doctors?: Doctor[];
 }
 
 export const PatientDetailView: React.FC<PatientDetailViewProps> = ({
   patient,
   onBack,
   onStartVoice,
-  onOpenNewCareNote
+  onOpenNewCareNote,
+  onOpenDoctorInfo,
+  onUpdatePatient,
+  doctors = []
 }) => {
   const [selectedTimelineDate, setSelectedTimelineDate] = useState<string>('all');
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+
+  const getFormattedNextVisit = (nextVisitTime: string) => {
+    if (!nextVisitTime) return "Aujourd'hui";
+    if (nextVisitTime.includes(',')) {
+      return nextVisitTime.split(',')[0].trim();
+    }
+    if (/^\d{1,2}:\d{2}$/.test(nextVisitTime.trim())) {
+      return "Aujourd'hui";
+    }
+    return nextVisitTime;
+  };
+
+  const getFormattedVisitHeading = (dateStr: string, author: string) => {
+    let dayPart = dateStr.includes(',') ? dateStr.split(',')[0].trim() : dateStr.trim();
+    return `${dayPart} - ${author}`;
+  };
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
@@ -51,18 +75,28 @@ export const PatientDetailView: React.FC<PatientDetailViewProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={() => onOpenNewCareNote(patient.id)}
-          className="px-4 py-2 bg-[#006591] hover:bg-[#004c6e] text-white font-semibold text-xs md:text-sm rounded-xl flex items-center gap-2 shadow-sm cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Nouvelle Note DAR</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsEditModalOpen(true)}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs md:text-sm rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200"
+            title="Modifier les informations du patient"
+          >
+            <Edit className="w-4 h-4 text-[#006591]" />
+            <span>Modifier Dossier</span>
+          </button>
+          <button
+            onClick={() => onOpenNewCareNote(patient.id)}
+            className="px-4 py-2 bg-[#006591] hover:bg-[#004c6e] text-white font-semibold text-xs md:text-sm rounded-xl flex items-center gap-2 shadow-sm cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nouvelle Note DAR</span>
+          </button>
+        </div>
       </div>
 
       {/* Patient Header Summary Card */}
       <section className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-5 w-full">
           <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-100 border-2 border-sky-300 shrink-0 shadow-sm">
             <img 
               src={patient.photoUrl} 
@@ -70,14 +104,23 @@ export const PatientDetailView: React.FC<PatientDetailViewProps> = ({
               className="w-full h-full object-cover" 
             />
           </div>
-          <div>
-            <div className="flex items-center gap-3 mb-1 flex-wrap">
-              <h2 className="text-2xl font-bold text-slate-800">{patient.name}</h2>
-              {patient.pathologyBadge && (
-                <span className="px-3 py-1 bg-teal-100 text-teal-800 rounded-full text-xs font-bold uppercase">
-                  {patient.pathologyBadge}
-                </span>
-              )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="text-2xl font-bold text-slate-800">{patient.name}</h2>
+                {patient.pathologyBadge && (
+                  <span className="px-3 py-1 bg-teal-100 text-teal-800 rounded-full text-xs font-bold uppercase">
+                    {patient.pathologyBadge}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setIsEditModalOpen(true)}
+                className="px-3 py-1.5 text-xs font-bold text-[#006591] bg-sky-50 hover:bg-sky-100 rounded-xl border border-sky-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Edit className="w-3.5 h-3.5" />
+                <span>Éditer infos</span>
+              </button>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 md:gap-8 mt-2 text-xs">
@@ -87,15 +130,23 @@ export const PatientDetailView: React.FC<PatientDetailViewProps> = ({
               </div>
               <div>
                 <span className="text-slate-400 font-semibold uppercase block">Prochaine visite</span>
-                <span className="font-bold text-[#006591] text-sm">{patient.nextVisitTime}</span>
+                <span className="font-bold text-[#006591] text-sm">{getFormattedNextVisit(patient.nextVisitTime)}</span>
               </div>
               <div>
-                <span className="text-slate-400 font-semibold uppercase block">Fréquence</span>
-                <span className="font-bold text-slate-700 text-sm">{patient.visitFrequency}</span>
+                <span className="text-slate-400 font-semibold uppercase block">Fréquence soins</span>
+                <span className="font-bold text-slate-700 text-sm">{patient.visitFrequency || '1x / Jour'}</span>
               </div>
               <div>
-                <span className="text-slate-400 font-semibold uppercase block">Médecin</span>
-                <span className="font-bold text-slate-700 text-sm">{patient.doctor}</span>
+                <span className="text-slate-400 font-semibold uppercase block">Médecin Traitant</span>
+                <button
+                  type="button"
+                  onClick={() => onOpenDoctorInfo && onOpenDoctorInfo(patient.doctor)}
+                  className="font-bold text-[#006591] text-sm hover:underline flex items-center gap-1 cursor-pointer"
+                  title="Voir la fiche du médecin"
+                >
+                  <Stethoscope className="w-3.5 h-3.5 text-[#006591]" />
+                  <span>{patient.doctor}</span>
+                </button>
               </div>
             </div>
           </div>
@@ -145,9 +196,8 @@ export const PatientDetailView: React.FC<PatientDetailViewProps> = ({
                 <div key={obs.id} className="relative space-y-3">
                   <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-[#006591] ring-4 ring-slate-100" />
                   
-                  <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                    <span>{obs.date}</span>
-                    <span className="text-xs font-medium text-slate-400">({obs.author})</span>
+                  <h3 className="text-base font-bold text-slate-800">
+                    {getFormattedVisitHeading(obs.date, obs.author)}
                   </h3>
 
                   {/* DAR Card */}
@@ -197,41 +247,20 @@ export const PatientDetailView: React.FC<PatientDetailViewProps> = ({
                 </div>
               ))}
           </div>
-
-          {/* Voice Memo Quick Banner */}
-          <div className="p-6 bg-gradient-to-r from-[#006591] to-[#0ea5e9] rounded-2xl text-white shadow-md flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center shrink-0">
-                <Mic className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h4 className="font-bold text-base">Transmission vocale rapide</h4>
-                <p className="text-xs text-sky-100 mt-0.5">
-                  Enregistrez vos observations DAR directement par la voix pour {patient.name}.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => onStartVoice(patient)}
-              className="px-5 py-2.5 bg-white text-[#006591] hover:bg-sky-50 font-bold text-xs rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
-            >
-              Démarrer la transmission
-            </button>
-          </div>
         </main>
       </div>
 
-      {/* Voice Assistant button for Patient Detail */}
-      <PageVoiceMicButton
-        pageTitle={`Dossier ${patient.name}`}
-        placeholderExamples={[
-          "Constantes : Tension 13/8 glycémie 1.4",
-          "Pansement : Réfection complète sans écoulement",
-          "Analyse : Cicatrisation normale et état serein"
-        ]}
-        onVoiceCommand={(cmd) => {
-          onOpenNewCareNote(patient.id);
+      {/* Edit Patient Modal */}
+      <EditPatientModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        patient={patient}
+        onUpdatePatient={(updated) => {
+          if (onUpdatePatient) {
+            onUpdatePatient(updated);
+          }
         }}
+        doctors={doctors}
       />
     </div>
   );

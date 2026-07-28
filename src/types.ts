@@ -3,6 +3,7 @@ export type NavView =
   | 'patients' 
   | 'patient-detail' 
   | 'tournee-manager'
+  | 'tournee-scheduling'
   | 'route-planner'
   | 'voice-transmission-hub' 
   | 'live-voice-transmission' 

@@ -1,6 +1,5 @@
 import React from 'react';
 import { Calendar, Menu } from 'lucide-react';
-import { ThemeSwitcher } from './ThemeSwitcher';
 
 interface HeaderProps {
   title: string;
@@ -42,7 +41,6 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-2 md:gap-3">
-        <ThemeSwitcher />
         {rightAction}
       </div>
     </header>

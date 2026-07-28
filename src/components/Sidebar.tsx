@@ -12,7 +12,8 @@ import {
   Plus,
   Stethoscope,
   Route,
-  Map
+  Map,
+  CalendarDays
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -36,6 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'accueil' as NavView, label: 'Accueil', icon: LayoutDashboard },
     { id: 'patients' as NavView, label: 'Patients', icon: Users },
     { id: 'tournee-manager' as NavView, label: 'Tournées', icon: Route },
+    { id: 'tournee-scheduling' as NavView, label: 'Planning & Gardes', icon: CalendarDays },
     { id: 'route-planner' as NavView, label: 'Carte & Trajet', icon: Map },
     { id: 'voice-transmission-hub' as NavView, label: 'Transmission', icon: Mic, activeCheck: isVoiceActive },
     { id: 'cotations' as NavView, label: 'Cotations', icon: Calculator },
@@ -52,7 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <Stethoscope className="w-6 h-6" />
         </div>
         <div className="flex flex-col">
-          <span className="font-bold text-xl tracking-tight text-white leading-tight">CareVoice IDEL</span>
+          <span className="font-bold text-xl tracking-tight text-white leading-tight">CareTone IDEL</span>
           <span className="text-xs text-slate-400 font-medium">Logiciel Infirmier</span>
         </div>
       </div>
@@ -93,7 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className="text-xs text-slate-400 truncate">Infirmière Libérale</span>
         </div>
         <button 
-          onClick={() => alert("Session CareVoice IDEL sécurisée. Pour vous déconnecter en toute sécurité, fermez votre navigateur HDS.")}
+          onClick={() => alert("Session CareTone IDEL sécurisée. Pour vous déconnecter en toute sécurité, fermez votre navigateur HDS.")}
           title="Se déconnecter"
           className="ml-auto text-slate-400 hover:text-white transition-colors p-1 cursor-pointer"
         >

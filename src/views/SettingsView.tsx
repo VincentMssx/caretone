@@ -125,8 +125,8 @@ export const SettingsView: React.FC = () => {
               onChange={(e) => setAiEngine(e.target.value)}
               className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0ea5e9] outline-none"
             >
-              <option value="gemini-2.5-flash">Moteur CareVoice Flash (Recommandé - Ultra rapide & structuré DAR)</option>
-              <option value="gemini-2.5-pro">Moteur CareVoice Pro (Haute précision médicale)</option>
+              <option value="gemini-2.5-flash">Moteur CareTone Flash (Recommandé - Ultra rapide & structuré DAR)</option>
+              <option value="gemini-2.5-pro">Moteur CareTone Pro (Haute précision médicale)</option>
             </select>
           </div>
 

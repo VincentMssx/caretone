@@ -5,8 +5,10 @@ import 'leaflet/dist/leaflet.css';
 import { 
   TourneePatient, 
   StatutTournee, 
+  TourneeColumn,
   getStoredTourneePatients, 
-  saveStoredTourneePatients 
+  saveStoredTourneePatients,
+  getStoredTourneeColumns
 } from '../data/mockPatients';
 import { VoiceRouteControl } from './VoiceRouteControl';
 import { 
@@ -26,7 +28,7 @@ import {
   Edit2,
   Check,
   Zap,
-  Sparkles
+  Route
 } from 'lucide-react';
 
 // Helper component to auto-recenter map bounds when points change
@@ -139,12 +141,13 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
   onNavigateToTourneeManager
 }) => {
   const [allPatients, setAllPatients] = useState<TourneePatient[]>([]);
-  const [activeTour, setActiveTour] = useState<'MATIN' | 'SOIR'>('MATIN');
+  const [tourneeColumns, setTourneeColumns] = useState<TourneeColumn[]>([]);
+  const [activeTour, setActiveTour] = useState<string>('MATIN');
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 
   // Departure address state
   const [departure, setDeparture] = useState<DepartureAddress>(() => {
-    const saved = localStorage.getItem('carevoice_departure_address');
+    const saved = localStorage.getItem('caretone_departure_address');
     if (saved) {
       try { return JSON.parse(saved); } catch (e) {}
     }
@@ -156,6 +159,14 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
   useEffect(() => {
     const loaded = getStoredTourneePatients();
     setAllPatients(loaded);
+    const cols = getStoredTourneeColumns();
+    setTourneeColumns(cols);
+    
+    // Set default activeTour if current activeTour is not in columns
+    const activeCols = cols.filter(c => c.id !== 'UNASSIGNED');
+    if (activeCols.length > 0 && !activeCols.some(c => c.id === activeTour)) {
+      setActiveTour(activeCols[0].id);
+    }
   }, []);
 
   const savePatients = (updated: TourneePatient[]) => {
@@ -166,7 +177,7 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
   const handleSelectPresetDeparture = (preset: DepartureAddress) => {
     setDeparture(preset);
     setCustomAddressInput(preset.address);
-    localStorage.setItem('carevoice_departure_address', JSON.stringify(preset));
+    localStorage.setItem('caretone_departure_address', JSON.stringify(preset));
     setIsEditingDeparture(false);
     if (onSuccessToast) {
       onSuccessToast(`Adresse de départ définie sur : ${preset.name}`);
@@ -182,7 +193,7 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
       lng: departure.lng
     };
     setDeparture(newDep);
-    localStorage.setItem('carevoice_departure_address', JSON.stringify(newDep));
+    localStorage.setItem('caretone_departure_address', JSON.stringify(newDep));
     setIsEditingDeparture(false);
     if (onSuccessToast) {
       onSuccessToast(`Adresse de départ enregistrée !`);
@@ -255,48 +266,112 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
   };
 
   // Recalculate shortest route from Departure point through all patients
+  // while strictly maintaining mandatory time constraints for fixed-time patients
   const handleOptimizeShortestRoute = () => {
     if (currentTourPatients.length <= 1) {
       if (onSuccessToast) onSuccessToast("Au moins 2 patients sont nécessaires pour optimiser le trajet.");
       return;
     }
 
-    let unvisited = [...currentTourPatients];
-    let currentLat = departure.lat;
-    let currentLng = departure.lng;
-    const optimized: TourneePatient[] = [];
+    // Separate patients with fixed mandatory time slots vs flexible patients
+    const fixedPatients = currentTourPatients
+      .filter(p => p.hasFixedTime && p.heurePassage && p.heurePassage.trim() !== '' && p.heurePassage !== 'Flexible')
+      .sort((a, b) => (a.heurePassage || '').localeCompare(b.heurePassage || ''));
 
-    while (unvisited.length > 0) {
-      let nearestIdx = 0;
-      let minDistance = Infinity;
+    const flexiblePatients = currentTourPatients.filter(
+      p => !p.hasFixedTime || !p.heurePassage || p.heurePassage.trim() === '' || p.heurePassage === 'Flexible'
+    );
 
-      for (let i = 0; i < unvisited.length; i++) {
-        const dist = calculateDistance(currentLat, currentLng, unvisited[i].lat, unvisited[i].lng);
-        if (dist < minDistance) {
-          minDistance = dist;
-          nearestIdx = i;
+    let finalOrderedSequence: TourneePatient[] = [];
+
+    if (fixedPatients.length > 0) {
+      // Start with fixed constraint patients as ordered backbone anchors
+      finalOrderedSequence = [...fixedPatients];
+
+      // Insert each flexible patient into the position that minimizes overall added route distance
+      flexiblePatients.forEach(flexP => {
+        let bestInsertionIndex = 0;
+        let minAddedDistance = Infinity;
+
+        for (let i = 0; i <= finalOrderedSequence.length; i++) {
+          const candidateSeq = [
+            ...finalOrderedSequence.slice(0, i),
+            flexP,
+            ...finalOrderedSequence.slice(i)
+          ];
+
+          let pathDist = 0;
+          let prevLat = departure.lat;
+          let prevLng = departure.lng;
+
+          for (const stop of candidateSeq) {
+            pathDist += calculateDistance(prevLat, prevLng, stop.lat, stop.lng);
+            prevLat = stop.lat;
+            prevLng = stop.lng;
+          }
+
+          if (pathDist < minAddedDistance) {
+            minAddedDistance = pathDist;
+            bestInsertionIndex = i;
+          }
         }
-      }
 
-      const nextPatient = unvisited[nearestIdx];
-      optimized.push(nextPatient);
-      currentLat = nextPatient.lat;
-      currentLng = nextPatient.lng;
-      unvisited.splice(nearestIdx, 1);
+        finalOrderedSequence.splice(bestInsertionIndex, 0, flexP);
+      });
+    } else {
+      // Nearest neighbor search if all patients are flexible
+      let unvisited = [...flexiblePatients];
+      let currentLat = departure.lat;
+      let currentLng = departure.lng;
+
+      while (unvisited.length > 0) {
+        let nearestIdx = 0;
+        let minDistance = Infinity;
+
+        for (let i = 0; i < unvisited.length; i++) {
+          const dist = calculateDistance(currentLat, currentLng, unvisited[i].lat, unvisited[i].lng);
+          if (dist < minDistance) {
+            minDistance = dist;
+            nearestIdx = i;
+          }
+        }
+
+        const nextPatient = unvisited[nearestIdx];
+        finalOrderedSequence.push(nextPatient);
+        currentLat = nextPatient.lat;
+        currentLng = nextPatient.lng;
+        unvisited.splice(nearestIdx, 1);
+      }
     }
 
-    // Assign optimized orderIndex and recalculate passage time
-    const baseHour = activeTour === 'MATIN' ? 8 : 16;
-    const reordered = optimized.map((item, idx) => {
-      const totalMinutes = idx * 20; // 20-minute average visit + travel
-      const hour = baseHour + Math.floor(totalMinutes / 60);
-      const mins = totalMinutes % 60;
-      const formattedTime = `${hour.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    // Assign optimized orderIndex and compute precise passage time estimates
+    const baseStartHour = activeTour === 'SOIR' ? 16 : 8;
+    let currentMinutes = baseStartHour * 60;
+    let prevLat = departure.lat;
+    let prevLng = departure.lng;
+
+    const reordered = finalOrderedSequence.map((item, idx) => {
+      const travelDistKm = calculateDistance(prevLat, prevLng, item.lat, item.lng);
+      const travelTimeMin = Math.max(3, Math.round(travelDistKm * 2) + 2);
+
+      if (idx > 0) {
+        currentMinutes += travelTimeMin;
+      }
+
+      const h = Math.floor(currentMinutes / 60);
+      const m = Math.round(currentMinutes % 60);
+      const estimatedTimeFormatted = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+
+      const careDuration = item.estimatedDurationMinutes || 15;
+      currentMinutes += careDuration;
+
+      prevLat = item.lat;
+      prevLng = item.lng;
 
       return {
         ...item,
         orderIndex: idx,
-        heurePassage: formattedTime
+        heurePassage: item.hasFixedTime && item.heurePassage ? item.heurePassage : estimatedTimeFormatted
       };
     });
 
@@ -305,7 +380,11 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
     savePatients(finalAll);
 
     if (onSuccessToast) {
-      onSuccessToast(`⚡ Trajet le plus court recalculé ! L'ordre de passage est mis à jour.`);
+      if (fixedPatients.length > 0) {
+        onSuccessToast(`⚡ Trajet le plus court recalculé ! ${fixedPatients.length} horaire(s) impératif(s) conservé(s) + insertion optimale des soins flexibles.`);
+      } else {
+        onSuccessToast(`⚡ Trajet le plus court recalculé pour tous les soins flexibles !`);
+      }
     }
   };
 
@@ -342,7 +421,7 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
               Navigation IDEL Nantes
             </span>
             <span className="text-xs text-slate-400">•</span>
-            <span className="text-xs text-slate-500 font-semibold">CareVoice</span>
+            <span className="text-xs text-slate-500 font-semibold">CareTone</span>
           </div>
           <h1 className="text-2xl font-bold text-slate-800 mt-1">Carte & Planificateur d'Itinéraire</h1>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -351,40 +430,43 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
         </div>
 
         {/* Tour selector & Google Maps Action */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleOptimizeShortestRoute}
             disabled={currentTourPatients.length <= 1}
-            title="Calcule l'ordre de passage optimal (TSP) pour minimer les kilomètres à partir de l'adresse de départ"
-            className="flex items-center gap-2 bg-gradient-to-r from-[#0ea5e9] to-[#006591] hover:from-[#0284c7] hover:to-[#004c6e] disabled:opacity-50 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer border border-sky-400/30"
+            title="Calcule l'ordre de passage optimal (TSP) pour minimer les kilomètres à partir de l'adresse de départ tout en respectant les horaires impératifs"
+            className="flex items-center gap-2 bg-gradient-to-r from-[#0ea5e9] to-[#006591] hover:from-[#0284c7] hover:to-[#004c6e] disabled:opacity-50 text-white px-3.5 py-2 rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer border border-sky-400/30"
           >
             <Zap className="w-4 h-4 text-amber-300 animate-pulse" />
             <span>Recalculer Trajet le plus court</span>
           </button>
 
-          <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200">
-            <button
-              onClick={() => setActiveTour('MATIN')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTour === 'MATIN'
-                  ? 'bg-amber-500 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Sun className="w-3.5 h-3.5" />
-              <span>Tournée 1</span>
-            </button>
-            <button
-              onClick={() => setActiveTour('SOIR')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTour === 'SOIR'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Moon className="w-3.5 h-3.5" />
-              <span>Tournée 2</span>
-            </button>
+          <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200 flex-wrap">
+            {tourneeColumns
+              .filter(col => col.id !== 'UNASSIGNED')
+              .map(col => {
+                const isActive = activeTour === col.id;
+                return (
+                  <button
+                    key={col.id}
+                    onClick={() => setActiveTour(col.id)}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-[#006591] text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {col.id === 'MATIN' ? (
+                      <Sun className="w-3.5 h-3.5" />
+                    ) : col.id === 'SOIR' ? (
+                      <Moon className="w-3.5 h-3.5" />
+                    ) : (
+                      <Route className="w-3.5 h-3.5" />
+                    )}
+                    <span>{col.title}</span>
+                  </button>
+                );
+              })}
           </div>
 
           <button
@@ -494,11 +576,11 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
                 <span>Ordre des Passages</span>
               </h2>
               <p className="text-[11px] text-slate-500">
-                {currentTourPatients.length} patient(s) dans la {activeTour === 'MATIN' ? 'Tournée 1' : 'Tournée 2'}
+                {currentTourPatients.length} patient(s) dans {tourneeColumns.find(c => c.id === activeTour)?.title || 'la tournée'}
               </p>
             </div>
             <span className="px-2.5 py-1 bg-sky-50 text-[#006591] font-bold text-xs rounded-lg">
-              {activeTour === 'MATIN' ? 'Tournée 1 (08h-12h)' : 'Tournée 2 (16h-20h)'}
+              {tourneeColumns.find(c => c.id === activeTour)?.title || 'Tournée'}
             </span>
           </div>
 
@@ -534,13 +616,23 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center justify-between gap-1 flex-wrap">
                         <span className="font-bold text-slate-900 text-sm truncate">
                           {patient.nom}
                         </span>
-                        <span className="flex items-center gap-1 font-extrabold text-[#006591] bg-white px-2 py-0.5 rounded-md text-xs border border-slate-200 shadow-2xs">
-                          <Clock className="w-3 h-3 text-[#006591]" />
-                          {patient.heurePassage}
+                        <span className={`flex items-center gap-1 font-bold px-2 py-0.5 rounded-md text-[11px] border shadow-2xs ${
+                          patient.hasFixedTime && patient.heurePassage
+                            ? 'bg-amber-100 text-amber-900 border-amber-300'
+                            : 'bg-sky-50 text-[#006591] border-sky-200'
+                        }`}>
+                          <Clock className="w-3 h-3 shrink-0" />
+                          {patient.hasFixedTime && patient.heurePassage ? (
+                            <span>🎯 Fixe : {patient.heurePassage}</span>
+                          ) : patient.heurePassage ? (
+                            <span>🕒 Estimé ~{patient.heurePassage}</span>
+                          ) : (
+                            <span>Passage Flexible</span>
+                          )}
                         </span>
                       </div>
 

@@ -150,7 +150,7 @@ export const CotationAssistantPanel: React.FC<CotationAssistantPanelProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 bg-amber-400 text-slate-950 font-extrabold text-[10px] rounded uppercase tracking-wider">
-                NGAP Assistant CareVoice
+                NGAP Assistant CareTone
               </span>
             </div>
             <h3 className="text-xl font-bold tracking-tight mt-0.5">

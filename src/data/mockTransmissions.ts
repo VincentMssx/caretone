@@ -89,7 +89,7 @@ export const initialMockTransmissions: TransmissionCommit[] = [
   }
 ];
 
-const LOCAL_STORAGE_KEY = 'carevoice_transmissions_git_v1';
+const LOCAL_STORAGE_KEY = 'caretone_transmissions_git_v1';
 
 export function getStoredTransmissions(): TransmissionCommit[] {
   try {

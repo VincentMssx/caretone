@@ -3,7 +3,7 @@ import { encryptData, decryptData } from '../utils/crypto';
 import { Patient, DARObservation } from '../types';
 
 /**
- * Service Base de Données CareVoice (Supabase PostgreSQL + HDS Chiffrement AES-256)
+ * Service Base de Données CareTone (Supabase PostgreSQL + HDS Chiffrement AES-256)
  */
 
 export interface SaveTransmissionInput {

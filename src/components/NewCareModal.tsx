@@ -79,7 +79,7 @@ export const NewCareModal: React.FC<NewCareModalProps> = ({
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#006591]" />
               <span className="text-xs font-semibold text-[#006591]">
-                Dictée vocale intelligente CareVoice
+                Dictée vocale intelligente CareTone
               </span>
             </div>
             <button

@@ -140,7 +140,7 @@ export const VoiceRouteControl: React.FC<VoiceRouteControlProps> = ({
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-slate-800">Ajustement Vocal d'Itinéraire</h4>
-                  <p className="text-[10px] text-slate-500">Dictée en temps réel CareVoice</p>
+                  <p className="text-[10px] text-slate-500">Dictée en temps réel CareTone</p>
                 </div>
               </div>
               <button

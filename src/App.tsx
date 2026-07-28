@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavView, Patient, MedicalAlert, CotationItem, Conversation, PersonalNote } from './types';
 import { INITIAL_PATIENTS, INITIAL_ALERTS, INITIAL_COTATIONS, INITIAL_CONVERSATIONS, INITIAL_NOTES } from './data/mockData';
 
@@ -20,12 +20,25 @@ import { MessagerieView } from './views/MessagerieView';
 import { SettingsView } from './views/SettingsView';
 import { NotesView } from './views/NotesView';
 import { TourneeManager } from './components/TourneeManager';
+import { TourneeSchedulingPanel } from './components/TourneeSchedulingPanel';
 import { RoutePlanner } from './components/RoutePlanner';
 
 import { CheckCircle2, Sparkles, X, LayoutDashboard, Users, Map, Mic, Mail, Menu } from 'lucide-react';
 
 export function App() {
   const [currentView, setCurrentView] = useState<NavView>('accueil');
+
+  // Enforce Classic Theme as default
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove('dark', 'theme-stitch', 'theme-light-sun');
+    root.classList.add('theme-classic');
+    try {
+      localStorage.removeItem('caretone_theme');
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
   const [patients, setPatients] = useState<Patient[]>(INITIAL_PATIENTS);
   const [alerts, setAlerts] = useState<MedicalAlert[]>(INITIAL_ALERTS);
   const [cotations, setCotations] = useState<CotationItem[]>(INITIAL_COTATIONS);
@@ -249,7 +262,7 @@ export function App() {
       case 'messagerie': return 'Messagerie Sécurisée HDS';
       case 'notes': return 'Notes Personnelles IDEL';
       case 'settings': return 'Settings';
-      default: return 'CareVoice IDEL';
+      default: return 'CareTone IDEL';
     }
   };
 
@@ -278,7 +291,7 @@ export function App() {
             showToast("Navigation vers les alertes prioritaires du jour.");
           }}
           onShowHelp={() => {
-            showToast("CareVoice IDEL: Utilisez le bouton 'Dictée Vocale' ou le micro pour saisir vos observations DAR.");
+            showToast("CareTone IDEL: Utilisez le bouton 'Dictée Vocale' ou le micro pour saisir vos observations DAR.");
           }}
         />
 
@@ -323,6 +336,12 @@ export function App() {
             />
           )}
 
+          {currentView === 'tournee-scheduling' && (
+            <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
+              <TourneeSchedulingPanel onSuccessToast={showToast} />
+            </div>
+          )}
+
           {currentView === 'route-planner' && (
             <RoutePlanner
               onNavigateToTourneeManager={() => setCurrentView('tournee-manager')}
@@ -344,6 +363,7 @@ export function App() {
           {currentView === 'voice-transmission-hub' && (
             <VoiceTransmissionHubView
               onStartLiveRecording={() => setCurrentView('live-voice-transmission')}
+              onInspectPatient={handleSelectPatientDrawer}
             />
           )}
 

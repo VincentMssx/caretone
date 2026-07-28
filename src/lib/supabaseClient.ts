@@ -6,12 +6,12 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder-a
 
 if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
   console.warn(
-    '[CareVoice Supabase] Configuration Supabase manquante dans .env. Veuillez configurer VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.'
+    '[CareTone Supabase] Configuration Supabase manquante dans .env. Veuillez configurer VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.'
   );
 }
 
 /**
- * Instance unique du Client Supabase pour l'application CareVoice
+ * Instance unique du Client Supabase pour l'application CareTone
  */
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

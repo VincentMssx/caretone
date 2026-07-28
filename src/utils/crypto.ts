@@ -8,7 +8,7 @@ import CryptoJS from 'crypto-js';
 
 // Clé de chiffrement lue depuis la variable d'environnement Vite/Vercel
 const ENCRYPTION_KEY =
-  import.meta.env.VITE_ENCRYPTION_KEY || 'carevoice-default-secure-hds-key-32chars!!';
+  import.meta.env.VITE_ENCRYPTION_KEY || 'caretone-default-secure-hds-key-32chars!!';
 
 /**
  * Chiffre une chaîne de texte brut en AES-256
@@ -24,7 +24,7 @@ export function encryptData(plainText: string | null | undefined): string {
     const ciphertext = CryptoJS.AES.encrypt(plainText, ENCRYPTION_KEY).toString();
     return ciphertext;
   } catch (error) {
-    console.error('[CareVoice Security] Erreur lors du chiffrement des données de santé:', error);
+    console.error('[CareTone Security] Erreur lors du chiffrement des données de santé:', error);
     return '';
   }
 }
@@ -51,7 +51,7 @@ export function decryptData(cipherText: string | null | undefined): string {
 
     return originalText;
   } catch (error) {
-    console.warn('[CareVoice Security] Échec du déchiffrement (données probablement non chiffrées):', error);
+    console.warn('[CareTone Security] Échec du déchiffrement (données probablement non chiffrées):', error);
     return cipherText;
   }
 }

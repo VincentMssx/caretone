@@ -217,7 +217,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
       category: extractedData.category || 'tournee',
       color: 'purple',
       isPinned: false,
-      tags: ['CareVoice', 'DictéeVocale', extractedData.patientName].filter(Boolean),
+      tags: ['CareTone', 'DictéeVocale', extractedData.patientName].filter(Boolean),
       patientName: extractedData.patientName !== 'Inconnu' ? extractedData.patientName : undefined
     });
     if (onSuccessToast) onSuccessToast('Note personnelle créée avec succès !');
@@ -275,7 +275,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 bg-sky-100 text-sky-800 text-[10px] font-extrabold uppercase rounded-md tracking-wider">
-                Voice-to-JSON CareVoice
+                Voice-to-JSON CareTone
               </span>
             </div>
             <h2 className="text-xl font-bold text-slate-800 mt-0.5">
@@ -440,7 +440,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
                 <h3 className="text-sm font-bold text-slate-800">
-                  Résultat Structuré CareVoice
+                  Résultat Structuré CareTone
                 </h3>
               </div>
               <button

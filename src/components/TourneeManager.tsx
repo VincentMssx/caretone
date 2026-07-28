@@ -13,8 +13,11 @@ const DraggableComp = Draggable as any;
 import { 
   TourneePatient, 
   StatutTournee, 
+  TourneeColumn,
   getStoredTourneePatients, 
-  saveStoredTourneePatients 
+  saveStoredTourneePatients,
+  getStoredTourneeColumns,
+  saveStoredTourneeColumns
 } from '../data/mockPatients';
 import { 
   Users, 
@@ -26,7 +29,13 @@ import {
   Stethoscope, 
   Map, 
   RotateCcw,
-  GripVertical
+  GripVertical,
+  Plus,
+  Pencil,
+  Trash2,
+  Check,
+  X,
+  Route
 } from 'lucide-react';
 
 interface TourneeManagerProps {
@@ -39,15 +48,106 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
   onSuccessToast
 }) => {
   const [patients, setPatients] = useState<TourneePatient[]>([]);
+  const [columns, setColumns] = useState<TourneeColumn[]>([]);
+
+  // Column editing state
+  const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editSubtitle, setEditSubtitle] = useState('');
+
+  // New column modal/form state
+  const [isAddingColumn, setIsAddingColumn] = useState(false);
+  const [newColumnTitle, setNewColumnTitle] = useState('');
+  const [newColumnSubtitle, setNewColumnSubtitle] = useState('');
 
   useEffect(() => {
-    const loaded = getStoredTourneePatients();
-    setPatients(loaded);
+    const loadedPatients = getStoredTourneePatients();
+    setPatients(loadedPatients);
+    const loadedColumns = getStoredTourneeColumns();
+    setColumns(loadedColumns);
   }, []);
 
-  const handleSave = (newPatients: TourneePatient[]) => {
+  const handleSavePatients = (newPatients: TourneePatient[]) => {
     setPatients(newPatients);
     saveStoredTourneePatients(newPatients);
+  };
+
+  const handleSaveColumns = (updatedCols: TourneeColumn[]) => {
+    setColumns(updatedCols);
+    saveStoredTourneeColumns(updatedCols);
+  };
+
+  const handleAddColumn = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newColumnTitle.trim()) return;
+
+    const newId = `TOURNEE_${Date.now()}`;
+    const colorPresets = [
+      { bgColor: 'bg-emerald-50/60', borderColor: 'border-emerald-200', badgeBg: 'bg-emerald-100', badgeText: 'text-emerald-800' },
+      { bgColor: 'bg-teal-50/60', borderColor: 'border-teal-200', badgeBg: 'bg-teal-100', badgeText: 'text-teal-800' },
+      { bgColor: 'bg-sky-50/60', borderColor: 'border-sky-200', badgeBg: 'bg-sky-100', badgeText: 'text-sky-800' },
+      { bgColor: 'bg-[#006591]/10', borderColor: 'border-[#006591]/30', badgeBg: 'bg-[#006591]/20', badgeText: 'text-[#006591]' },
+      { bgColor: 'bg-purple-50/60', borderColor: 'border-purple-200', badgeBg: 'bg-purple-100', badgeText: 'text-purple-800' },
+    ];
+    const preset = colorPresets[columns.length % colorPresets.length];
+
+    const newCol: TourneeColumn = {
+      id: newId,
+      title: newColumnTitle.trim(),
+      subtitle: newColumnSubtitle.trim() || 'Tournée personnalisée',
+      ...preset,
+      isDeletable: true
+    };
+
+    const updated = [...columns, newCol];
+    handleSaveColumns(updated);
+    setNewColumnTitle('');
+    setNewColumnSubtitle('');
+    setIsAddingColumn(false);
+    if (onSuccessToast) onSuccessToast(`Nouvelle tournée "${newCol.title}" créée avec succès !`);
+  };
+
+  const handleStartEditColumn = (col: TourneeColumn) => {
+    setEditingColumnId(col.id);
+    setEditTitle(col.title);
+    setEditSubtitle(col.subtitle);
+  };
+
+  const handleSaveColumnEdit = (colId: string) => {
+    if (!editTitle.trim()) return;
+    const updated = columns.map(c => {
+      if (c.id === colId) {
+        return {
+          ...c,
+          title: editTitle.trim(),
+          subtitle: editSubtitle.trim()
+        };
+      }
+      return c;
+    });
+    handleSaveColumns(updated);
+    setEditingColumnId(null);
+    if (onSuccessToast) onSuccessToast(`Nom de la tournée mis à jour : "${editTitle.trim()}"`);
+  };
+
+  const handleDeleteColumn = (colId: string, colTitle: string) => {
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer la tournée "${colTitle}" ? Tous ses patients seront replacés dans "Non Assignés".`)) {
+      return;
+    }
+
+    // Reassign patients in this column to 'UNASSIGNED'
+    const updatedPatients = patients.map(p => {
+      if (p.statutTournee === colId) {
+        return { ...p, statutTournee: 'UNASSIGNED' };
+      }
+      return p;
+    });
+    handleSavePatients(updatedPatients);
+
+    const updatedCols = columns.filter(c => c.id !== colId);
+    handleSaveColumns(updatedCols);
+
+    if (onSuccessToast) onSuccessToast(`Tournée "${colTitle}" supprimée. Patients déplacés vers Non Assignés.`);
   };
 
   const handleDragEnd = (result: DropResult) => {
@@ -92,7 +192,7 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
         p => p.statutTournee !== source.droppableId
       );
       const updatedAll = [...otherPatients, ...updatedColumn];
-      handleSave(updatedAll);
+      handleSavePatients(updatedAll);
     } else {
       // Move to different column
       const sourceCopy = Array.from(sourceColumnList);
@@ -120,15 +220,12 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
       );
 
       const updatedAll = [...otherPatients, ...updatedSource, ...updatedDest];
-      handleSave(updatedAll);
+      handleSavePatients(updatedAll);
 
       if (onSuccessToast) {
-        const columnNames: Record<StatutTournee, string> = {
-          UNASSIGNED: 'Non Assignés',
-          MATIN: 'Tournée 1',
-          SOIR: 'Tournée 2'
-        };
-        onSuccessToast(`${movedPatient.nom} déplacé(e) vers ${columnNames[newStatus]}`);
+        const destCol = columns.find(c => c.id === newStatus);
+        const colName = destCol ? destCol.title : newStatus;
+        onSuccessToast(`${movedPatient.nom} déplacé(e) vers ${colName}`);
       }
     }
   };
@@ -139,52 +236,6 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
       .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
   };
 
-  const columns: Array<{
-    id: StatutTournee;
-    title: string;
-    subtitle: string;
-    icon: React.FC<{ className?: string }>;
-    bgColor: string;
-    borderColor: string;
-    badgeBg: string;
-    badgeText: string;
-  }> = [
-    {
-      id: 'UNASSIGNED',
-      title: 'Patients Non Assignés',
-      subtitle: 'À planifier dans une tournée',
-      icon: HelpCircle,
-      bgColor: 'bg-slate-50',
-      borderColor: 'border-slate-200',
-      badgeBg: 'bg-slate-200',
-      badgeText: 'text-slate-800'
-    },
-    {
-      id: 'MATIN',
-      title: 'Tournée 1',
-      subtitle: 'Premier passage de la journée (08h00 - 12h00)',
-      icon: Sun,
-      bgColor: 'bg-amber-50/50',
-      borderColor: 'border-amber-200/80',
-      badgeBg: 'bg-amber-100',
-      badgeText: 'text-amber-800'
-    },
-    {
-      id: 'SOIR',
-      title: 'Tournée 2',
-      subtitle: 'Second passage de la journée (16h00 - 20h00)',
-      icon: Moon,
-      bgColor: 'bg-indigo-50/50',
-      borderColor: 'border-indigo-200/80',
-      badgeBg: 'bg-indigo-100',
-      badgeText: 'text-indigo-800'
-    }
-  ];
-
-  const unassignedCount = getColumnPatients('UNASSIGNED').length;
-  const matinCount = getColumnPatients('MATIN').length;
-  const soirCount = getColumnPatients('SOIR').length;
-
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Header Section */}
@@ -192,91 +243,212 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 bg-[#006591]/10 text-[#006591] text-[11px] font-extrabold uppercase rounded-md tracking-wider">
-              Nantes Métropole
+              Cabinet IDEL Nantes
             </span>
             <span className="text-xs text-slate-400">•</span>
-            <span className="text-xs text-slate-500 font-semibold">CareVoice IDEL</span>
+            <span className="text-xs text-slate-500 font-semibold">{columns.length - 1} Tournée(s) Active(s)</span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 mt-1">Gestion des Tournées</h1>
+          <h1 className="text-2xl font-bold text-slate-800 mt-1">Tournées</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Organisez par glisser-déposer vos passages de soins entre le matin, le soir et les patients en attente.
+            Organisez l'ordre des visites, renommez vos tournées à la volée ou ajoutez de nouvelles colonnes de tournée.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setIsAddingColumn(true)}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Ajouter une Tournée</span>
+          </button>
+
           <button
             onClick={onNavigateToRoutePlanner}
             className="flex items-center gap-2 bg-[#006591] hover:bg-[#004d70] text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
           >
             <Map className="w-4 h-4 text-sky-300" />
-            <span>Voir Carte & Trajet</span>
+            <span>Voir Carte & Trajet GPS</span>
           </button>
         </div>
       </div>
 
-      {/* Quick Summary Badges */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-slate-100 text-slate-600 rounded-lg">
-              <Users className="w-5 h-5" />
+      {/* Add New Tournee Modal */}
+      {isAddingColumn && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <form onSubmit={handleAddColumn} className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-[#006591]">
+                <Route className="w-5 h-5" />
+                <h3 className="text-base font-bold text-slate-900">Créer une Nouvelle Tournée</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddingColumn(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer font-bold"
+              >
+                ✕
+              </button>
             </div>
-            <div>
-              <p className="text-xs text-slate-500 font-semibold uppercase">Non Assignés</p>
-              <p className="text-xl font-bold text-slate-800">{unassignedCount} patient(s)</p>
-            </div>
-          </div>
-        </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-amber-100 text-amber-700 rounded-lg">
-              <Sun className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 font-semibold uppercase">Tournée 1</p>
-              <p className="text-xl font-bold text-slate-800">{matinCount} patient(s)</p>
-            </div>
-          </div>
-        </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Nom de la tournée *</label>
+                <input
+                  type="text"
+                  placeholder="ex: Tournée 3 - Centre Est, Garde Dimanche..."
+                  value={newColumnTitle}
+                  onChange={e => setNewColumnTitle(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#006591] outline-none"
+                  autoFocus
+                  required
+                />
+              </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-100 text-indigo-700 rounded-lg">
-              <Moon className="w-5 h-5" />
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Description / Horaire</label>
+                <input
+                  type="text"
+                  placeholder="ex: Passages après-midi (13h00 - 16h00)"
+                  value={newColumnSubtitle}
+                  onChange={e => setNewColumnSubtitle(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#006591] outline-none"
+                />
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-slate-500 font-semibold uppercase">Tournée 2</p>
-              <p className="text-xl font-bold text-slate-800">{soirCount} patient(s)</p>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsAddingColumn(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Créer la Tournée</span>
+              </button>
             </div>
-          </div>
+          </form>
         </div>
+      )}
+
+      {/* Dynamic Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        {columns.map(col => {
+          const count = getColumnPatients(col.id).length;
+          return (
+            <div key={'summary-' + col.id} className="bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] text-slate-500 font-extrabold uppercase truncate">{col.title}</p>
+                <p className="text-base font-bold text-slate-900 mt-0.5">{count} patient(s)</p>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Drag & Drop Columns Grid */}
       <DragDropContextComp onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className={`grid grid-cols-1 ${
+          columns.length === 2 ? 'md:grid-cols-2' : 
+          columns.length === 3 ? 'md:grid-cols-3' : 
+          'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+        } gap-5`}>
           {columns.map(col => {
-            const ColumnIcon = col.icon;
             const columnPatients = getColumnPatients(col.id);
+            const isEditing = editingColumnId === col.id;
 
             return (
               <div
                 key={col.id}
-                className={`${col.bgColor} border ${col.borderColor} rounded-2xl p-4 flex flex-col min-h-[500px] shadow-xs`}
+                className={`${col.bgColor} border ${col.borderColor} rounded-2xl p-4 flex flex-col min-h-[520px] shadow-xs relative`}
               >
                 {/* Column Header */}
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200/60 mb-3">
-                  <div className="flex items-center gap-2">
-                    <ColumnIcon className="w-5 h-5 text-slate-700" />
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-800">{col.title}</h3>
-                      <p className="text-[11px] text-slate-500">{col.subtitle}</p>
+                <div className="pb-3 border-b border-slate-200/80 mb-3">
+                  {isEditing ? (
+                    <div className="space-y-2 bg-white p-2.5 rounded-xl border border-sky-300 shadow-sm">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-[10px] font-bold text-[#006591] uppercase">Éditer le nom</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleSaveColumnEdit(col.id)}
+                            className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 cursor-pointer"
+                            title="Valider"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setEditingColumnId(null)}
+                            className="p-1 bg-slate-200 text-slate-700 rounded hover:bg-slate-300 cursor-pointer"
+                            title="Annuler"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        value={editTitle}
+                        onChange={e => setEditTitle(e.target.value)}
+                        className="w-full px-2 py-1 text-xs font-bold border border-slate-300 rounded focus:ring-1 focus:ring-[#006591] outline-none"
+                        placeholder="Nom de la tournée..."
+                      />
+                      <input
+                        type="text"
+                        value={editSubtitle}
+                        onChange={e => setEditSubtitle(e.target.value)}
+                        className="w-full px-2 py-1 text-[11px] text-slate-600 border border-slate-200 rounded outline-none"
+                        placeholder="Sous-titre / horaire..."
+                      />
                     </div>
-                  </div>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-extrabold ${col.badgeBg} ${col.badgeText}`}>
-                    {columnPatients.length}
-                  </span>
+                  ) : (
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {col.id === 'UNASSIGNED' ? (
+                          <HelpCircle className="w-5 h-5 text-slate-500 shrink-0" />
+                        ) : col.id === 'MATIN' ? (
+                          <Sun className="w-5 h-5 text-amber-600 shrink-0" />
+                        ) : col.id === 'SOIR' ? (
+                          <Moon className="w-5 h-5 text-indigo-600 shrink-0" />
+                        ) : (
+                          <Route className="w-5 h-5 text-[#006591] shrink-0" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <h3 className="text-sm font-bold text-slate-900 truncate">{col.title}</h3>
+                            <button
+                              onClick={() => handleStartEditColumn(col)}
+                              className="text-slate-400 hover:text-[#006591] p-0.5 rounded cursor-pointer transition-colors shrink-0"
+                              title="Renommer cette tournée"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-slate-500 truncate mt-0.5">{col.subtitle}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${col.badgeBg} ${col.badgeText}`}>
+                          {columnPatients.length}
+                        </span>
+                        {col.isDeletable !== false && (
+                          <button
+                            onClick={() => handleDeleteColumn(col.id, col.title)}
+                            className="text-slate-300 hover:text-rose-600 p-1 rounded transition-colors cursor-pointer"
+                            title="Supprimer cette tournée"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Droppable Area */}
@@ -290,7 +462,7 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
                       }`}
                     >
                       {columnPatients.length === 0 ? (
-                        <div className="h-40 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-xs gap-1">
+                        <div className="h-40 flex flex-col items-center justify-center border-2 border-dashed border-slate-200/80 rounded-xl text-slate-400 text-xs gap-1">
                           <Users className="w-6 h-6 opacity-40" />
                           <span>Aucun patient dans cette colonne</span>
                           <span className="text-[10px]">Glissez des cartes ici</span>
@@ -306,7 +478,7 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
                               <div
                                 ref={providedDrag.innerRef}
                                 {...providedDrag.draggableProps}
-                                className={`bg-white p-4 rounded-xl border border-slate-200 shadow-xs hover:shadow-md transition-all relative ${
+                                className={`bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs hover:shadow-md transition-all relative ${
                                   snapshotDrag.isDragging ? 'shadow-2xl ring-2 ring-[#0ea5e9] rotate-1' : ''
                                 }`}
                               >
@@ -326,12 +498,16 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
                                       <span className="line-clamp-2 leading-tight">{patient.adresse}</span>
                                     </div>
 
-                                    <div className="flex items-center gap-3 mt-2.5 pt-2 border-t border-slate-100 text-xs">
-                                      <span className="flex items-center gap-1 font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                                    <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-100 text-xs flex-wrap">
+                                      <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${
+                                        patient.hasFixedTime
+                                          ? 'bg-amber-100 text-amber-900 font-bold border border-amber-300'
+                                          : 'bg-slate-100 text-slate-600 font-medium'
+                                      }`}>
                                         <Clock className="w-3 h-3 text-[#006591]" />
-                                        {patient.heurePassage}
+                                        {patient.heurePassage ? patient.heurePassage : 'Flexible (Sans horaire)'}
                                       </span>
-                                      <span className="flex items-center gap-1 text-slate-600 bg-sky-50 text-[#006591] px-2 py-0.5 rounded-md font-medium">
+                                      <span className="flex items-center gap-1 text-slate-600 bg-sky-50 text-[#006591] px-2 py-0.5 rounded-md font-medium truncate">
                                         <Stethoscope className="w-3 h-3 text-[#006591]" />
                                         {patient.typeSoin}
                                       </span>
@@ -366,8 +542,8 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
         pageTitle="Gestion des Tournées"
         placeholderExamples={[
           "Passer M. Dupont en Tournée 1",
-          "Changer l'horaire de visite à 10:15",
-          "Déplacer Mme Bernard en Tournée 2"
+          "Renommer la tournée du matin en Tournée Centre",
+          "Ajouter une nouvelle tournée après-midi"
         ]}
         onVoiceCommand={(cmd) => {
           if (onSuccessToast) onSuccessToast(`Modification vocale enregistrée : ${cmd}`);
@@ -376,3 +552,4 @@ export const TourneeManager: React.FC<TourneeManagerProps> = ({
     </div>
   );
 };
+

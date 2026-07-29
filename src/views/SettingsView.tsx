@@ -9,19 +9,68 @@ import {
   Save, 
   Lock,
   Mic,
-  Calculator
+  Calculator,
+  Plus,
+  Trash2,
+  UserCheck
 } from 'lucide-react';
 
+export interface Titulaire {
+  id: string;
+  name: string;
+  role: string;
+  rpps: string;
+}
+
 export const SettingsView: React.FC = () => {
-  const [cabinetName, setCabinetName] = useState('Cabinet Infirmier Libéral Julie R.');
-  const [rppsNumber, setRppsNumber] = useState('10003482910');
+  const [cabinetName, setCabinetName] = useState('Cabinet Infirmier Libéral R. & L.');
   const [adeliNumber, setAdeliNumber] = useState('756482910');
   const [aiEngine, setAiEngine] = useState('gemini-2.5-flash');
   const [autoExtractDAR, setAutoExtractDAR] = useState(true);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  // Multiple titulaires state
+  const [titulaires, setTitulaires] = useState<Titulaire[]>(() => {
+    try {
+      const saved = localStorage.getItem('caretone_titulaires');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return [
+      { id: 't1', name: 'Julie R.', role: "Infirmière Diplômée d'État (Associée)", rpps: '10003482910' },
+      { id: 't2', name: 'Sarah L.', role: "Infirmière Diplômée d'État (Associée)", rpps: '10005928391' }
+    ];
+  });
+
+  const handleAddTitulaire = () => {
+    const newT: Titulaire = {
+      id: `t-${Date.now()}`,
+      name: 'Nouveau Titulaire',
+      role: "Infirmier(ère) Diplômé(e) d'État",
+      rpps: '10000000000'
+    };
+    const updated = [...titulaires, newT];
+    setTitulaires(updated);
+    localStorage.setItem('caretone_titulaires', JSON.stringify(updated));
+  };
+
+  const handleUpdateTitulaire = (id: string, field: keyof Titulaire, value: string) => {
+    const updated = titulaires.map(t => t.id === id ? { ...t, [field]: value } : t);
+    setTitulaires(updated);
+    localStorage.setItem('caretone_titulaires', JSON.stringify(updated));
+  };
+
+  const handleRemoveTitulaire = (id: string) => {
+    if (titulaires.length <= 1) return;
+    const updated = titulaires.filter(t => t.id !== id);
+    setTitulaires(updated);
+    localStorage.setItem('caretone_titulaires', JSON.stringify(updated));
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    localStorage.setItem('caretone_titulaires', JSON.stringify(titulaires));
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
   };
@@ -31,7 +80,7 @@ export const SettingsView: React.FC = () => {
       <div className="flex justify-between items-center border-b border-slate-200 pb-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Paramètres de l'application</h2>
-          <p className="text-xs text-slate-500 font-medium">Configuration du cabinet, Moteur Vocal & Sécurité HDS</p>
+          <p className="text-xs text-slate-500 font-medium">Configuration du cabinet, Titulaires, Moteur Vocal & Sécurité HDS</p>
         </div>
 
         <button
@@ -54,7 +103,7 @@ export const SettingsView: React.FC = () => {
       <section className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
         <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2">
           <User className="w-4 h-4 text-[#006591]" />
-          <span>Identité du Cabinet & Praticienne</span>
+          <span>Identité du Cabinet & Informations Générales</span>
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -72,31 +121,7 @@ export const SettingsView: React.FC = () => {
 
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-              Praticienne Titulaire
-            </label>
-            <input
-              type="text"
-              disabled
-              value="Julie R. - Infirmière Diplômée d'État"
-              className="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-medium text-slate-500 cursor-not-allowed"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-              N° RPPS
-            </label>
-            <input
-              type="text"
-              value={rppsNumber}
-              onChange={(e) => setRppsNumber(e.target.value)}
-              className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-[#0ea5e9] outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-              N° ADELI
+              N° ADELI du Cabinet
             </label>
             <input
               type="text"
@@ -105,6 +130,91 @@ export const SettingsView: React.FC = () => {
               className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-[#0ea5e9] outline-none"
             />
           </div>
+        </div>
+      </section>
+
+      {/* MULTIPLE TITULAIRES SECTION */}
+      <section className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+            <UserCheck className="w-4 h-4 text-[#006591]" />
+            <span>Titulaires du Cabinet ({titulaires.length})</span>
+          </h3>
+
+          <button
+            onClick={handleAddTitulaire}
+            className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#006591] border border-sky-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Ajouter un titulaire</span>
+          </button>
+        </div>
+
+        <p className="text-xs text-slate-500">
+          Gérez les praticiennes et praticiens titulaires associés à ce cabinet infirmier.
+        </p>
+
+        <div className="space-y-3">
+          {titulaires.map((t, idx) => (
+            <div key={t.id} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-[#006591] text-white flex items-center justify-center text-[10px]">
+                    {idx + 1}
+                  </span>
+                  Titulaire #{idx + 1}
+                </span>
+
+                {titulaires.length > 1 && (
+                  <button
+                    onClick={() => handleRemoveTitulaire(t.id)}
+                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                    title="Supprimer ce titulaire"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                    Nom & Prénom
+                  </label>
+                  <input
+                    type="text"
+                    value={t.name}
+                    onChange={(e) => handleUpdateTitulaire(t.id, 'name', e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0ea5e9] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                    Titre / Qualification
+                  </label>
+                  <input
+                    type="text"
+                    value={t.role}
+                    onChange={(e) => handleUpdateTitulaire(t.id, 'role', e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-[#0ea5e9] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                    N° RPPS
+                  </label>
+                  <input
+                    type="text"
+                    value={t.rpps}
+                    onChange={(e) => handleUpdateTitulaire(t.id, 'rpps', e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-medium text-slate-800 focus:ring-2 focus:ring-[#0ea5e9] outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 

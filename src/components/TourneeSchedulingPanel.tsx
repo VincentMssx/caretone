@@ -17,6 +17,9 @@ import {
   CheckCircle2, 
   XCircle, 
   AlertCircle, 
+  AlertTriangle,
+  Scale,
+  Users,
   Clock, 
   Send, 
   MessageSquare, 
@@ -217,6 +220,33 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
     return cells;
   }, [selectedYear, selectedMonth]);
 
+  // Helper to match Tournée filters reliably across naming conventions
+  const checkTourneeMatch = (tourneeName: string, filterStr: string): boolean => {
+    if (!filterStr || filterStr === 'ALL') return true;
+    const t = (tourneeName || '').toLowerCase();
+    const f = filterStr.toLowerCase();
+
+    if (t.includes(f) || f.includes(t)) return true;
+
+    const isMatinFilter = f.includes('matin') || f.includes('1') || f.includes('t1');
+    const isMatinTournee = t.includes('matin') || t.includes('1') || t.includes('t1') || t.includes('centre-ville');
+    if (isMatinFilter && isMatinTournee) return true;
+
+    const isSoirFilter = f.includes('soir') || f.includes('2') || f.includes('t2');
+    const isSoirTournee = t.includes('soir') || t.includes('2') || t.includes('t2') || t.includes('secteur est');
+    if (isSoirFilter && isSoirTournee) return true;
+
+    return false;
+  };
+
+  // Ref and helper for smooth scroll down to Chat section
+  const chatSectionRef = React.useRef<HTMLDivElement>(null);
+  const scrollToChat = () => {
+    setTimeout(() => {
+      chatSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  };
+
   // Aggregate shifts by date for month grid
   const shiftsByDate = React.useMemo(() => {
     const map: Record<string, Array<{
@@ -234,9 +264,8 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
         const shiftTournee = shift.tourneeName || cal.tourneeName;
 
         if (tourneeFilter !== 'ALL') {
-          const filterLower = tourneeFilter.toLowerCase();
-          const matchCal = cal.tourneeName.toLowerCase().includes(filterLower);
-          const matchShift = shiftTournee.toLowerCase().includes(filterLower);
+          const matchCal = checkTourneeMatch(cal.tourneeName, tourneeFilter);
+          const matchShift = checkTourneeMatch(shiftTournee, tourneeFilter);
           if (!matchCal && !matchShift) return;
         }
 
@@ -268,9 +297,8 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
       calendars.filter(c => c.nurseId === nurse.id).forEach(cal => {
         cal.shifts.forEach(s => {
           if (tourneeFilter !== 'ALL') {
-            const filterLower = tourneeFilter.toLowerCase();
             const sTournee = s.tourneeName || cal.tourneeName;
-            if (!cal.tourneeName.toLowerCase().includes(filterLower) && !sTournee.toLowerCase().includes(filterLower)) {
+            if (!checkTourneeMatch(cal.tourneeName, tourneeFilter) && !checkTourneeMatch(sTournee, tourneeFilter)) {
               return;
             }
           }
@@ -310,6 +338,161 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
 
   // Inline Message Input State
   const [replyMessage, setReplyMessage] = useState('');
+
+  // Chat Tabs & Multi-Manager State
+  const [chatTab, setChatTab] = useState<'CONFLICTS' | 'GENERAL' | 'DIRECT'>('CONFLICTS');
+  const [activeConflictId, setActiveConflictId] = useState<string>('conf-1');
+  const [activeSenderPersona, setActiveSenderPersona] = useState<string>('Dr Morel (Gérant)');
+
+  // General Cabinet Chat Messages
+  const [generalMessages, setGeneralMessages] = useState<Array<{
+    id: string;
+    senderName: string;
+    senderRole: string;
+    content: string;
+    createdAt: string;
+  }>>([
+    {
+      id: 'gen-1',
+      senderName: 'Dr Morel (Gérant)',
+      senderRole: 'GERANT',
+      content: 'Bonjour l\'équipe ! Merci de vérifier vos disponibilités pour fin Juillet. En cas de conflit, utilisez l\'onglet Arbitrage.',
+      createdAt: '2026-07-27T08:30:00Z'
+    },
+    {
+      id: 'gen-2',
+      senderName: 'Julie R. (Co-Gérante)',
+      senderRole: 'GERANT',
+      content: 'Parfait ! J\'ai transmis mes demandes de garde. N\'hésitez pas si vous souhaitez échanger une tournée.',
+      createdAt: '2026-07-27T09:10:00Z'
+    }
+  ]);
+
+  // Conflicts State
+  const [conflictsList, setConflictsList] = useState([
+    {
+      id: 'conf-1',
+      date: '2026-07-28',
+      tourneeName: 'Tournée Matin (Centre-ville)',
+      nurseAName: 'Julie R.',
+      nurseAId: 'nurse-julie',
+      nurseBName: 'Marc V.',
+      nurseBId: 'nurse-marc',
+      reason: 'Double demande simultanée pour la même tournée du 28 Juillet.',
+      status: 'OPEN' as 'OPEN' | 'RESOLVED',
+      resolvedWinner: null as string | null,
+      messages: [
+        {
+          id: 'cm-1',
+          senderName: 'Marc V. (IDEL)',
+          senderRole: 'NURSE',
+          content: 'J\'ai posé ma candidature pour la garde du 28/07.',
+          createdAt: '2026-07-27T10:00:00Z'
+        },
+        {
+          id: 'cm-2',
+          senderName: 'Julie R. (Co-Gérante)',
+          senderRole: 'GERANT',
+          content: 'Je suis également disponible le 28/07. On attend l\'arbitrage de la gérance.',
+          createdAt: '2026-07-27T10:15:00Z'
+        }
+      ]
+    },
+    {
+      id: 'conf-2',
+      date: '2026-08-05',
+      tourneeName: 'Tournée Soir (Secteur Est)',
+      nurseAName: 'Marc V.',
+      nurseAId: 'nurse-marc',
+      nurseBName: 'Sophie L.',
+      nurseBId: 'nurse-sophie',
+      reason: 'Demande de remplacement non arbitrée sur la tournée du soir.',
+      status: 'OPEN' as 'OPEN' | 'RESOLVED',
+      resolvedWinner: null as string | null,
+      messages: [
+        {
+          id: 'cm-201',
+          senderName: 'Sophie L. (Remplaçante)',
+          senderRole: 'NURSE',
+          content: 'Bonjour, disponible pour remplacer Marc V. le 05/08.',
+          createdAt: '2026-07-27T14:20:00Z'
+        }
+      ]
+    }
+  ]);
+
+  // Handler: Arbitrate Conflict
+  const handleArbitrateConflict = (conflictId: string, winnerNurseName: string, winnerNurseId: string) => {
+    const activeConf = conflictsList.find(c => c.id === conflictId);
+    if (!activeConf) return;
+
+    const arbMsgText = `⚖️ ARBITRAGE GÉRANCE : La garde du ${activeConf.date} (${activeConf.tourneeName}) est officiellement attribuée à ${winnerNurseName} par ${activeSenderPersona}.`;
+
+    // 1. Mark conflict as resolved and append arbitration message
+    setConflictsList(prev => prev.map(c => {
+      if (c.id === conflictId) {
+        return {
+          ...c,
+          status: 'RESOLVED',
+          resolvedWinner: winnerNurseName,
+          messages: [
+            ...c.messages,
+            {
+              id: `arb-${Date.now()}`,
+              senderName: activeSenderPersona,
+              senderRole: 'GERANT',
+              content: arbMsgText,
+              createdAt: new Date().toISOString()
+            }
+          ]
+        };
+      }
+      return c;
+    }));
+
+    // 2. Also append to general cabinet chat
+    setGeneralMessages(prev => [
+      ...prev,
+      {
+        id: `gen-arb-${Date.now()}`,
+        senderName: activeSenderPersona,
+        senderRole: 'GERANT',
+        content: arbMsgText,
+        createdAt: new Date().toISOString()
+      }
+    ]);
+
+    // 3. Update shift status in calendars state
+    setCalendars(prevCals => prevCals.map(cal => {
+      if (cal.nurseId === winnerNurseId) {
+        // Accept shift for winner
+        const existingShiftIndex = cal.shifts.findIndex(s => s.date === activeConf.date);
+        let newShifts = [...cal.shifts];
+        if (existingShiftIndex !== -1) {
+          newShifts[existingShiftIndex] = { ...newShifts[existingShiftIndex], status: 'ACCEPTED' };
+        } else {
+          newShifts.push({
+            id: `shift-arb-${Date.now()}`,
+            date: activeConf.date,
+            tourneeName: activeConf.tourneeName,
+            status: 'ACCEPTED',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        }
+        return { ...cal, shifts: newShifts };
+      } else if (cal.nurseId === (winnerNurseId === activeConf.nurseAId ? activeConf.nurseBId : activeConf.nurseAId)) {
+        // Reject or cancel for other nurse
+        const newShifts = cal.shifts.map(s => s.date === activeConf.date ? { ...s, status: 'REJECTED' as ShiftStatus } : s);
+        return { ...cal, shifts: newShifts };
+      }
+      return cal;
+    }));
+
+    if (onSuccessToast) {
+      onSuccessToast(`Arbitrage effectué ! Garde attribuée à ${winnerNurseName}. Planning mis à jour.`);
+    }
+  };
 
   // Selected Calendar object
   const activeCalendar = calendars.find(c => c.id === selectedCalendarId) || calendars[0];
@@ -621,15 +804,50 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
   // Handler: Send Message
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!replyMessage.trim() || !activeCalendar) return;
+    if (!replyMessage.trim()) return;
+
+    const contentText = replyMessage.trim();
+
+    if (chatTab === 'CONFLICTS') {
+      const activeConf = conflictsList.find(c => c.id === activeConflictId);
+      if (activeConf) {
+        const newMsg = {
+          id: `cm-${Date.now()}`,
+          senderName: activeSenderPersona,
+          senderRole: activeSenderPersona.includes('Gérant') ? 'GERANT' : 'NURSE',
+          content: contentText,
+          createdAt: new Date().toISOString()
+        };
+        setConflictsList(prev => prev.map(c => c.id === activeConflictId ? { ...c, messages: [...c.messages, newMsg] } : c));
+        setReplyMessage('');
+        if (onSuccessToast) onSuccessToast("Message posté dans le fil de conflit !");
+      }
+      return;
+    }
+
+    if (chatTab === 'GENERAL') {
+      const newMsg = {
+        id: `gen-${Date.now()}`,
+        senderName: activeSenderPersona,
+        senderRole: activeSenderPersona.includes('Gérant') ? 'GERANT' : 'NURSE',
+        content: contentText,
+        createdAt: new Date().toISOString()
+      };
+      setGeneralMessages(prev => [...prev, newMsg]);
+      setReplyMessage('');
+      if (onSuccessToast) onSuccessToast("Message posté sur le canal général du cabinet !");
+      return;
+    }
+
+    if (!activeCalendar) return;
 
     const newMessage = {
       id: `msg-${Date.now()}`,
       tourneeCalendarId: activeCalendar.id,
       senderId: currentUser.id,
-      senderName: currentUser.name,
-      senderRole: currentUser.role,
-      content: replyMessage.trim(),
+      senderName: activeSenderPersona,
+      senderRole: activeSenderPersona.includes('Gérant') ? 'PARTNER' : 'NURSE',
+      content: contentText,
       createdAt: new Date().toISOString()
     };
 
@@ -641,18 +859,6 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
 
     setCalendars(prev => prev.map(c => c.id === activeCalendar.id ? updatedCalendar : c));
     setReplyMessage('');
-
-    // Send Notification to recipient
-    const recipientId = currentUser.role === 'PARTNER' ? activeCalendar.nurseId : activeCalendar.partnerId;
-    const recipientRole = currentUser.role === 'PARTNER' ? 'NURSE' : 'PARTNER';
-
-    sendNotification(
-      recipientId,
-      recipientRole,
-      `Nouveau message de ${currentUser.name}`,
-      `Message concernant ${activeCalendar.tourneeName} : "${newMessage.content.slice(0, 60)}..."`,
-      'negotiation_update'
-    );
 
     if (onSuccessToast) onSuccessToast("Message envoyé !");
   };
@@ -1077,22 +1283,22 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
 
       {/* Floating Multi-Day Assignment Bar */}
       {selectedMultiDates.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] bg-[#131b2e] text-white p-4 rounded-2xl shadow-2xl border border-sky-400 flex flex-col sm:flex-row items-center gap-3.5 max-w-2xl w-[94vw]">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] bg-[#131b2e] text-white p-3.5 sm:p-4 rounded-2xl shadow-2xl border border-sky-400 flex flex-col sm:flex-row items-center justify-between gap-3 max-w-3xl w-[94vw]">
           <div className="flex items-center gap-2.5 shrink-0">
-            <div className="w-9 h-9 rounded-full bg-sky-500 text-white font-black text-sm flex items-center justify-center shadow-inner">
+            <div className="w-8 h-8 rounded-full bg-sky-500 text-white font-black text-xs flex items-center justify-center shadow-inner">
               {selectedMultiDates.length}
             </div>
             <div>
-              <h4 className="font-bold text-xs">Jours sélectionnés</h4>
-              <p className="text-[11px] text-sky-200">Glisser-déposer pour affecter plusieurs jours</p>
+              <h4 className="font-bold text-xs leading-tight">Jours sélectionnés</h4>
+              <p className="text-[10px] text-sky-200 leading-tight">Affectation rapide</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto">
             <select
               value={multiSelectNurseId}
               onChange={e => setMultiSelectNurseId(e.target.value)}
-              className="bg-slate-800 text-white text-xs font-bold p-2 rounded-xl border border-slate-700 outline-none flex-1"
+              className="bg-slate-800 text-white text-xs font-bold p-2 rounded-xl border border-slate-700 outline-none flex-1 sm:flex-none min-w-[100px]"
             >
               <option value="nurse-julie">Julie R.</option>
               <option value="nurse-marc">Marc V.</option>
@@ -1102,7 +1308,7 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
             <select
               value={multiSelectTourneeName}
               onChange={e => setMultiSelectTourneeName(e.target.value)}
-              className="bg-slate-800 text-white text-xs font-bold p-2 rounded-xl border border-slate-700 outline-none flex-1"
+              className="bg-slate-800 text-white text-xs font-bold p-2 rounded-xl border border-slate-700 outline-none flex-1 sm:flex-none min-w-[120px]"
             >
               <option value="Tournée Matin">Tournée Matin</option>
               <option value="Tournée Soir">Tournée Soir</option>
@@ -1111,14 +1317,14 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
 
             <button
               onClick={handleApplyMultiSelection}
-              className="px-4 py-2 bg-[#006591] hover:bg-sky-500 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer whitespace-nowrap transition-all active:scale-95"
+              className="shrink-0 px-3.5 py-2 bg-[#006591] hover:bg-sky-500 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer whitespace-nowrap transition-all active:scale-95"
             >
               Affecter l'infirmier
             </button>
 
             <button
               onClick={() => setSelectedMultiDates([])}
-              className="p-2 text-slate-400 hover:text-white rounded-xl cursor-pointer"
+              className="p-2 text-slate-400 hover:text-white rounded-xl cursor-pointer shrink-0"
               title="Annuler la sélection"
             >
               ✕
@@ -1139,7 +1345,10 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
             return (
               <div
                 key={nurse.nurseId}
-                onClick={() => setSelectedCalendarId(nurse.calendarId)}
+                onClick={() => {
+                  setSelectedCalendarId(nurse.calendarId);
+                  scrollToChat();
+                }}
                 className={`bg-white p-4 rounded-2xl border shadow-xs transition-all cursor-pointer flex flex-col justify-between ${
                   isSelected
                     ? 'border-[#006591] ring-2 ring-[#006591]/20 shadow-md'
@@ -1192,73 +1401,258 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
         </div>
       </section>
 
-      {/* SECTION 3: CHAT */}
-      <section className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+      {/* SECTION 3: CHAT & ARBITRAGE DE CONFLITS (MULTI-GÉRANTS) */}
+      <section ref={chatSectionRef} className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+        {/* Header & Tabs */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 pb-4 gap-3">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-sky-100 text-[#006591] rounded-xl">
               <MessageSquare className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-bold text-slate-900 text-base">
-                Chat & Négociation {activeCalendar ? `(${activeCalendar.nurseName})` : ''}
+                Chat & Négociations du Cabinet
               </h3>
               <p className="text-xs text-slate-500">
-                Échangez en direct concernant les gardes, remplacements et disponibilités.
+                Co-gérance multi-gérants et résolution des conflits d'affectation.
               </p>
             </div>
           </div>
+
+          {/* Chat Mode Tabs */}
+          <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold shrink-0">
+            <button
+              onClick={() => setChatTab('CONFLICTS')}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                chatTab === 'CONFLICTS' ? 'bg-[#006591] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-300" />
+              <span>Arbitrage Conflits ({conflictsList.filter(c => c.status === 'OPEN').length})</span>
+            </button>
+            <button
+              onClick={() => setChatTab('GENERAL')}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                chatTab === 'GENERAL' ? 'bg-[#006591] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Canal Général</span>
+            </button>
+            <button
+              onClick={() => setChatTab('DIRECT')}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                chatTab === 'DIRECT' ? 'bg-[#006591] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Discussion Directe {activeCalendar ? `(${activeCalendar.nurseName})` : ''}</span>
+            </button>
+          </div>
         </div>
 
-        {activeCalendar ? (
+        {/* Multi-Manager Sender Persona Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-sky-50/70 p-2.5 rounded-xl border border-sky-100 text-xs">
+          <div className="flex items-center gap-2 font-semibold text-sky-900">
+            <Scale className="w-4 h-4 text-[#006591]" />
+            <span>Identité de l'expéditeur (Gérance) :</span>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {['Dr Morel (Gérant)', 'Julie R. (Co-Gérante)', 'Marc V. (Associé)'].map(persona => (
+              <button
+                key={persona}
+                onClick={() => setActiveSenderPersona(persona)}
+                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                  activeSenderPersona === persona
+                    ? 'bg-[#006591] text-white shadow-xs'
+                    : 'bg-white text-slate-700 hover:bg-sky-100 border border-slate-200'
+                }`}
+              >
+                {persona}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* TAB 1: CONFLICTS ARBITRATION */}
+        {chatTab === 'CONFLICTS' && (
           <div className="space-y-4">
-            <div className="space-y-2.5 max-h-72 overflow-y-auto p-4 bg-slate-50 rounded-xl border border-slate-200">
-              {activeCalendar.messages.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-4">Aucun message pour l'instant.</p>
-              ) : (
-                activeCalendar.messages.map(msg => (
-                  <div
-                    key={msg.id}
-                    className={`p-3 rounded-xl text-xs space-y-1 ${
-                      msg.senderId === currentUser.id
-                        ? 'bg-sky-50 text-sky-950 border border-sky-200 ml-8'
-                        : 'bg-white text-slate-800 border border-slate-200 mr-8'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between font-bold text-[11px] text-slate-700">
-                      <span>{msg.senderName} ({msg.senderRole === 'PARTNER' ? 'Gérant' : 'Infirmier'})</span>
-                      <span className="text-[10px] text-slate-400 font-normal">
-                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    <p className="leading-relaxed text-slate-800">{msg.content}</p>
-                  </div>
-                ))
-              )}
+            {/* Conflict selector tabs */}
+            <div className="flex gap-2 overflow-x-auto pb-1 text-xs">
+              {conflictsList.map(conf => (
+                <button
+                  key={conf.id}
+                  onClick={() => setActiveConflictId(conf.id)}
+                  className={`px-3 py-2 rounded-xl border flex items-center gap-2 font-bold whitespace-nowrap transition-all cursor-pointer ${
+                    activeConflictId === conf.id
+                      ? 'border-[#006591] bg-sky-50/80 text-[#006591]'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${conf.status === 'OPEN' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                  <span>{conf.date} : {conf.nurseAName} vs {conf.nurseBName}</span>
+                  {conf.status === 'RESOLVED' && <span className="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-md">Résolu</span>}
+                </button>
+              ))}
             </div>
 
-            <form onSubmit={handleSendMessage} className="flex gap-2">
-              <input
-                type="text"
-                placeholder={`Écrivez un message à ${activeCalendar.nurseName}...`}
-                value={replyMessage}
-                onChange={(e) => setReplyMessage(e.target.value)}
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#006591]"
-              />
-              <button
-                type="submit"
-                className="bg-[#006591] hover:bg-[#004d70] text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-2 shrink-0 active:scale-95"
-              >
-                <Send className="w-4 h-4" />
-                <span>Envoyer</span>
-              </button>
-            </form>
+            {/* Active Conflict Detail Box */}
+            {(() => {
+              const activeConf = conflictsList.find(c => c.id === activeConflictId) || conflictsList[0];
+              if (!activeConf) return null;
+
+              return (
+                <div className="space-y-4">
+                  <div className={`p-4 rounded-xl border ${activeConf.status === 'OPEN' ? 'bg-amber-50/70 border-amber-200' : 'bg-emerald-50/70 border-emerald-200'} space-y-3`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className={`w-5 h-5 shrink-0 ${activeConf.status === 'OPEN' ? 'text-amber-600' : 'text-emerald-600'}`} />
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-sm">
+                            Conflit d'affectation : {activeConf.tourneeName} — {activeConf.date}
+                          </h4>
+                          <p className="text-xs text-slate-600">{activeConf.reason}</p>
+                        </div>
+                      </div>
+                      <span className={`self-start sm:self-auto px-2.5 py-1 rounded-full text-xs font-bold ${activeConf.status === 'OPEN' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>
+                        {activeConf.status === 'OPEN' ? '⚡ Conflit Ouvert' : `✅ Attribué à ${activeConf.resolvedWinner}`}
+                      </span>
+                    </div>
+
+                    {/* Arbitration Buttons for Managers */}
+                    {activeConf.status === 'OPEN' ? (
+                      <div className="pt-2 border-t border-amber-200/80 flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-bold text-amber-950">Arbitrer en tant que {activeSenderPersona} :</span>
+                        <button
+                          onClick={() => handleArbitrateConflict(activeConf.id, activeConf.nurseAName, activeConf.nurseAId)}
+                          className="px-3 py-1.5 bg-[#006591] hover:bg-[#004d70] text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                        >
+                          Accorder la garde à {activeConf.nurseAName}
+                        </button>
+                        <button
+                          onClick={() => handleArbitrateConflict(activeConf.id, activeConf.nurseBName, activeConf.nurseBId)}
+                          className="px-3 py-1.5 bg-[#006591] hover:bg-[#004d70] text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                        >
+                          Accorder la garde à {activeConf.nurseBName}
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-emerald-800 font-semibold pt-1 border-t border-emerald-200/80">
+                        Arbitrage effectué par la gérance. Le calendrier a été synchronisé avec les créneaux validés.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Conflict Messages Timeline */}
+                  <div className="space-y-2.5 max-h-72 overflow-y-auto p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    {activeConf.messages.map(msg => (
+                      <div
+                        key={msg.id}
+                        className={`p-3 rounded-xl text-xs space-y-1 ${
+                          msg.content.includes('ARBITRAGE')
+                            ? 'bg-amber-100/90 text-amber-950 border border-amber-300 font-medium'
+                            : msg.senderName.includes(activeSenderPersona)
+                            ? 'bg-sky-50 text-sky-950 border border-sky-200 ml-8'
+                            : 'bg-white text-slate-800 border border-slate-200 mr-8'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between font-bold text-[11px] text-slate-700">
+                          <span>{msg.senderName}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p className="leading-relaxed">{msg.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
-        ) : (
-          <p className="text-xs text-slate-400 py-4 text-center">
-            Sélectionnez un infirmier dans la liste ci-dessus pour ouvrir le chat.
-          </p>
         )}
+
+        {/* TAB 2: CANAL GÉNÉRAL */}
+        {chatTab === 'GENERAL' && (
+          <div className="space-y-4">
+            <div className="space-y-2.5 max-h-72 overflow-y-auto p-4 bg-slate-50 rounded-xl border border-slate-200">
+              {generalMessages.map(msg => (
+                <div
+                  key={msg.id}
+                  className={`p-3 rounded-xl text-xs space-y-1 ${
+                    msg.content.includes('ARBITRAGE')
+                      ? 'bg-amber-100/90 text-amber-950 border border-amber-300 font-medium'
+                      : msg.senderName.includes(activeSenderPersona)
+                      ? 'bg-sky-50 text-sky-950 border border-sky-200 ml-8'
+                      : 'bg-white text-slate-800 border border-slate-200 mr-8'
+                  }`}
+                >
+                  <div className="flex items-center justify-between font-bold text-[11px] text-slate-700">
+                    <span>{msg.senderName}</span>
+                    <span className="text-[10px] text-slate-400 font-normal">
+                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className="leading-relaxed">{msg.content}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: DISCUSSION DIRECTE */}
+        {chatTab === 'DIRECT' && (
+          <div>
+            {activeCalendar ? (
+              <div className="space-y-2.5 max-h-72 overflow-y-auto p-4 bg-slate-50 rounded-xl border border-slate-200">
+                {activeCalendar.messages.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-4">Aucun message direct pour l'instant.</p>
+                ) : (
+                  activeCalendar.messages.map(msg => (
+                    <div
+                      key={msg.id}
+                      className={`p-3 rounded-xl text-xs space-y-1 ${
+                        msg.senderName.includes(activeSenderPersona)
+                          ? 'bg-sky-50 text-sky-950 border border-sky-200 ml-8'
+                          : 'bg-white text-slate-800 border border-slate-200 mr-8'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-bold text-[11px] text-slate-700">
+                        <span>{msg.senderName}</span>
+                        <span className="text-[10px] text-slate-400 font-normal">
+                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="leading-relaxed">{msg.content}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 py-4 text-center">
+                Sélectionnez un infirmier dans la liste ci-dessus pour ouvrir le chat.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Input Form across all tabs */}
+        <form onSubmit={handleSendMessage} className="flex gap-2 pt-2">
+          <input
+            type="text"
+            placeholder={`Écrire en tant que ${activeSenderPersona}...`}
+            value={replyMessage}
+            onChange={(e) => setReplyMessage(e.target.value)}
+            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#006591]"
+          />
+          <button
+            type="submit"
+            className="bg-[#006591] hover:bg-[#004d70] text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-2 shrink-0 active:scale-95"
+          >
+            <Send className="w-4 h-4" />
+            <span>Envoyer</span>
+          </button>
+        </form>
       </section>
 
       {/* Modal: Shift Detail Quick Actions */}
@@ -1352,6 +1746,7 @@ export const TourneeSchedulingPanel: React.FC<TourneeSchedulingPanelProps> = ({ 
                   setSelectedCalendarId(activeShiftDetail.calendar.id);
                   setViewMode('LIST');
                   setActiveShiftDetail(null);
+                  scrollToChat();
                 }}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs transition-all cursor-pointer border border-slate-200"
               >

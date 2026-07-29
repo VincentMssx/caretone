@@ -48,6 +48,36 @@ export const INITIAL_MOCK_DAILY_TRANSMISSIONS: Record<string, DailyGlobalTransmi
         createdAt: '2026-07-27T09:10:00Z'
       }
     ],
+    validatedDiffs: [
+      {
+        patientId: 'p1',
+        patientName: 'Jean Dupont',
+        dar: {
+          cible: 'Glycémie & Pansement orteil',
+          donnees: 'Glycémie 2.1 g/L avec sueurs au réveil, recontrôlée à 1.4 g/L post-collation à 09h15. Pansement orteil gauche refait.',
+          actions: 'Injection Novorapid 6 UI réalisée. Réfection du pansement orteil gauche au sérum physiologique.',
+          resultats: 'Soin bien toléré, absence de surinfection. Glycémie stabilisée après collation.'
+        },
+        changes: [
+          { field: 'Glycémie Capillaire', previousValue: '2.1 g/L', newValue: '1.4 g/L', actionType: 'UPDATE' },
+          { field: 'Pansement Orteil', previousValue: 'Pansement propre', newValue: 'Refait, aspect sain', actionType: 'UPDATE' }
+        ]
+      },
+      {
+        patientId: 'p2',
+        patientName: 'Marie Lefebvre',
+        dar: {
+          cible: 'Dyspnée au lever & Constantes cardiovasculaires',
+          donnees: 'Essoufflement modéré au lever. TA 14/8 mmHg, pouls 72 bpm régulier.',
+          actions: 'Administration du traitement kardegic + tahor à 09h00. Installation au fauteuil avec conseils d\'économie d\'effort.',
+          resultats: 'Respiration apaisée au repos. Surveillance tensionnelle maintenue pour la tournée du soir.'
+        },
+        changes: [
+          { field: 'Tension Artérielle', previousValue: '12/8 mmHg', newValue: '14/8 mmHg', actionType: 'ALERT' }
+        ]
+      }
+    ],
+    isDiffsValidated: true,
     createdAt: '2026-07-27T08:00:00Z',
     updatedAt: '2026-07-27T12:30:00Z'
   },
@@ -94,8 +124,10 @@ export function getStoredDailyTransmissions(): Record<string, DailyGlobalTransmi
 
 export function saveDailyTransmission(tx: DailyGlobalTransmission): Record<string, DailyGlobalTransmission> {
   const currentMap = getStoredDailyTransmissions();
+  const keyToUse = tx.id || tx.date;
   const updatedMap = {
     ...currentMap,
+    [keyToUse]: tx,
     [tx.date]: tx
   };
 

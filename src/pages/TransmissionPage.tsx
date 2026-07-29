@@ -3,10 +3,14 @@ import {
   DailyGlobalTransmission, 
   TransmissionStatus, 
   AlertSeverity, 
-  PatientAlert 
+  PatientAlert,
+  VoiceExtractionResult,
+  PatientUpdate
 } from '../types/transmission';
+import { VoiceReviewDiffModal } from '../components/VoiceReviewDiffModal';
 import { Patient } from '../types';
 import { INITIAL_PATIENTS } from '../data/mockData';
+import { getStoredTourneeColumns, TourneeColumn } from '../data/mockPatients';
 import { 
   getStoredDailyTransmissions, 
   saveDailyTransmission, 
@@ -41,8 +45,37 @@ import {
   Info,
   X,
   UserCheck,
-  Edit3
+  Edit3,
+  Check
 } from 'lucide-react';
+
+export interface UserAccount {
+  id: string;
+  name: string;
+  role: string;
+  assignedTournees: string[];
+}
+
+const SIMULATED_ACCOUNTS: UserAccount[] = [
+  {
+    id: 'julie',
+    name: 'Julie R. (Titulaire)',
+    role: "Infirmière Diplômée d'État Titulaire",
+    assignedTournees: ['Tournée Matin', 'Tournée Soir', 'Tournée Garde Cabinet', 'Tournée 1 - Matin Centre', 'Tournée 2 - Soir Sud']
+  },
+  {
+    id: 'sarah',
+    name: 'Sarah L. (Titulaire)',
+    role: "Infirmière Diplômée d'État Titulaire",
+    assignedTournees: ['Tournée Matin', 'Tournée Soir', 'Tournée 1 - Matin Centre', 'Tournée 2 - Soir Sud']
+  },
+  {
+    id: 'marc',
+    name: 'Marc D. (Remplaçant non inscrit)',
+    role: 'Infirmier Remplaçant (Non affecté)',
+    assignedTournees: []
+  }
+];
 
 interface TransmissionPageProps {
   onInspectPatient?: (patient: Patient) => void;
@@ -54,21 +87,36 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
   onStartLiveRecording
 }) => {
   // Current selected date string YYYY-MM-DD
-  const getTodayStr = () => {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
   const [selectedDate, setSelectedDate] = useState<string>('2026-07-27');
+  const [tourneeColumns, setTourneeColumns] = useState<TourneeColumn[]>([]);
+  const [selectedTournee, setSelectedTournee] = useState<string>('Tournée Matin');
+
+  // Account simulation state
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('julie');
+  const currentAccount = SIMULATED_ACCOUNTS.find(a => a.id === selectedAccountId) || SIMULATED_ACCOUNTS[0];
+
+  // Registered check
+  const isRegisteredOnTournee = currentAccount.id !== 'marc' || currentAccount.assignedTournees.includes(selectedTournee);
+
+  useEffect(() => {
+    const cols = getStoredTourneeColumns().filter(c => c.id !== 'UNASSIGNED');
+    setTourneeColumns(cols);
+    if (cols.length > 0 && !cols.some(c => c.title === selectedTournee)) {
+      setSelectedTournee(cols[0].title);
+    }
+  }, []);
+
   const [transmissionsMap, setTransmissionsMap] = useState<Record<string, DailyGlobalTransmission>>(() => {
     return getStoredDailyTransmissions();
   });
 
+  // Key generator helper for per-tournee transmission storage
+  const getTxKey = (dateStr: string, tourneeStr: string) => `${dateStr}_${tourneeStr}`;
+
+  const currentKey = getTxKey(selectedDate, selectedTournee);
+
   // Current active transmission record
-  const currentTx: DailyGlobalTransmission = transmissionsMap[selectedDate] || createEmptyDailyTransmission(selectedDate);
+  const currentTx: DailyGlobalTransmission = transmissionsMap[currentKey] || transmissionsMap[selectedDate] || createEmptyDailyTransmission(selectedDate);
 
   // Editable state for current transmission
   const [summaryNote, setSummaryNote] = useState<string>(currentTx.summaryNote);
@@ -76,10 +124,100 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
   const [status, setStatus] = useState<TransmissionStatus>(currentTx.status);
   const [voiceNoteUrl, setVoiceNoteUrl] = useState<string | undefined>(currentTx.voiceNoteUrl);
   const [voiceNoteDuration, setVoiceNoteDuration] = useState<number | undefined>(currentTx.voiceNoteDuration);
+  const [validatedDiffs, setValidatedDiffs] = useState<PatientUpdate[]>(currentTx.validatedDiffs || []);
+  const [isDiffsValidated, setIsDiffsValidated] = useState<boolean>(currentTx.isDiffsValidated || false);
+  const [validatedBy, setValidatedBy] = useState<string | undefined>(currentTx.validatedBy);
 
   // Modal & Toast states
   const [isAddAlertModalOpen, setIsAddAlertModalOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  // Voice Review & Diff Modal states
+  const [isVoiceDiffModalOpen, setIsVoiceDiffModalOpen] = useState(false);
+  const [voiceExtractionData, setVoiceExtractionData] = useState<VoiceExtractionResult | null>(null);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+
+  const handleProcessVoiceAndOpenDiffModal = async (dictationText?: string) => {
+    if (!isRegisteredOnTournee) {
+      showToast("Seul un infirmier inscrit sur cette tournée peut réviser les diffs.");
+      return;
+    }
+    setIsProcessingVoice(true);
+    try {
+      const res = await fetch('/api/transmissions/process-voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dictationText: dictationText || summaryNote || "Pour M. Jean Dupont, tension 13/8 ce matin, glycémie 1.85 g/L, pansement sacrum bourgeonnant. Mme Chantal Martin, glycémie 2.40 g/L, douleur cheville EVA 4/10.",
+          existingPatients: INITIAL_PATIENTS
+        })
+      });
+      const data = await res.json();
+      setVoiceExtractionData(data);
+      setIsVoiceDiffModalOpen(true);
+    } catch (err) {
+      console.error('Failed to process voice:', err);
+      setVoiceExtractionData({
+        rawTranscript: "Pour M. Jean Dupont, tension 13/8 ce matin, glycémie 1.85 g/L, pansement sacrum bourgeonnant. Mme Chantal Martin, glycémie 2.40 g/L, douleur cheville EVA 4/10.",
+        patientUpdates: [
+          {
+            patientId: "p1",
+            patientName: "Jean Dupont",
+            changes: [
+              { field: "Tension Artérielle", previousValue: "12/8", newValue: "13/8", actionType: "UPDATE" },
+              { field: "Glycémie Capillaire", previousValue: "1.40 g/L", newValue: "1.85 g/L", actionType: "UPDATE" }
+            ]
+          },
+          {
+            patientId: "p5",
+            patientName: "Chantal Martin",
+            changes: [
+              { field: "Glycémie Capillaire", previousValue: "1.30 g/L", newValue: "2.40 g/L", actionType: "ALERT" },
+              { field: "Douleur Cheville", previousValue: "Aucune", newValue: "EVA 4/10 suite chute", actionType: "ALERT" }
+            ]
+          }
+        ]
+      });
+      setIsVoiceDiffModalOpen(true);
+    } finally {
+      setIsProcessingVoice(false);
+    }
+  };
+
+  const handleApplyVoiceUpdates = async (validatedUpdates: PatientUpdate[]) => {
+    try {
+      await fetch('/api/transmissions/apply-voice-updates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          updates: validatedUpdates,
+          date: selectedDate,
+          tourneeName: selectedTournee
+        })
+      });
+
+      let updatedNote = summaryNote ? `${summaryNote}\n\n` : '';
+      updatedNote += `--- RELÈVE VOCALE VALIDÉE (${selectedTournee}) ---\n`;
+
+      validatedUpdates.forEach(pu => {
+        updatedNote += `\n• ${pu.patientName} :\n`;
+        pu.changes.forEach(c => {
+          updatedNote += `  - ${c.field} : ${c.previousValue} ➔ ${c.newValue} [${c.actionType}]${c.isManuallyEdited ? ' (✏️ Corriger manuellement)' : ''}\n`;
+        });
+      });
+
+      setSummaryNote(updatedNote);
+      setValidatedDiffs(validatedUpdates);
+      setIsDiffsValidated(true);
+      handlePersistChanges(updatedNote, alerts, status, voiceNoteUrl, voiceNoteDuration, validatedUpdates, true);
+      setIsVoiceDiffModalOpen(false);
+      showToast(`Diffs validés et enregistrés pour ${validatedUpdates.length} patient(s) !`);
+    } catch (err) {
+      console.error('Failed to apply voice updates:', err);
+      setIsVoiceDiffModalOpen(false);
+      showToast('Erreur lors de l\'enregistrement des modifications.');
+    }
+  };
 
   // New Alert Form state
   const [selectedPatientId, setSelectedPatientId] = useState<string>('p1');
@@ -97,17 +235,21 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const audioProgressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sync state when selectedDate changes
+  // Sync state when selectedDate or selectedTournee changes
   useEffect(() => {
-    const tx = transmissionsMap[selectedDate] || createEmptyDailyTransmission(selectedDate);
+    const key = getTxKey(selectedDate, selectedTournee);
+    const tx = transmissionsMap[key] || createEmptyDailyTransmission(selectedDate);
     setSummaryNote(tx.summaryNote || '');
     setAlerts(tx.alerts || []);
     setStatus(tx.status || TransmissionStatus.DRAFT);
     setVoiceNoteUrl(tx.voiceNoteUrl);
     setVoiceNoteDuration(tx.voiceNoteDuration);
+    setValidatedDiffs(tx.validatedDiffs || []);
+    setIsDiffsValidated(tx.isDiffsValidated || false);
+    setValidatedBy(tx.validatedBy);
     setIsPlayingAudio(false);
     setAudioPlaybackProgress(0);
-  }, [selectedDate, transmissionsMap]);
+  }, [selectedDate, selectedTournee, transmissionsMap]);
 
   // Toast Helper
   const showToast = (msg: string) => {
@@ -121,16 +263,24 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
     updatedAlerts: PatientAlert[],
     updatedStatus: TransmissionStatus,
     updatedAudioUrl?: string,
-    updatedAudioDuration?: number
+    updatedAudioDuration?: number,
+    updatedValidatedDiffs?: PatientUpdate[],
+    updatedIsDiffsValidated?: boolean,
+    updatedValidatedBy?: string
   ) => {
+    const key = getTxKey(selectedDate, selectedTournee);
     const updatedTx: DailyGlobalTransmission = {
       ...currentTx,
+      id: key,
       date: selectedDate,
       summaryNote: updatedNote,
       alerts: updatedAlerts,
       status: updatedStatus,
       voiceNoteUrl: updatedAudioUrl,
       voiceNoteDuration: updatedAudioDuration,
+      validatedDiffs: updatedValidatedDiffs !== undefined ? updatedValidatedDiffs : validatedDiffs,
+      isDiffsValidated: updatedIsDiffsValidated !== undefined ? updatedIsDiffsValidated : isDiffsValidated,
+      validatedBy: updatedValidatedBy !== undefined ? updatedValidatedBy : validatedBy,
       updatedAt: new Date().toISOString()
     };
 
@@ -184,21 +334,15 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
 
   // Note auto-save handler
   const handleNoteChange = (val: string) => {
+    if (!isRegisteredOnTournee) return;
     setSummaryNote(val);
     handlePersistChanges(val, alerts, status, voiceNoteUrl, voiceNoteDuration);
-  };
-
-  // Insert Template Helpers
-  const handleInsertTemplate = (templateText: string) => {
-    const newText = summaryNote ? `${summaryNote}\n\n${templateText}` : templateText;
-    setSummaryNote(newText);
-    handlePersistChanges(newText, alerts, status, voiceNoteUrl, voiceNoteDuration);
-    showToast("Gabarit inséré dans la synthèse !");
   };
 
   // Alert Management
   const handleAddAlert = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isRegisteredOnTournee) return;
     if (!alertDescription.trim()) {
       showToast("Veuillez saisir la description de l'incident.");
       return;
@@ -228,6 +372,7 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
   };
 
   const handleDeleteAlert = (alertId: string) => {
+    if (!isRegisteredOnTournee) return;
     const updatedAlerts = alerts.filter(a => a.id !== alertId);
     setAlerts(updatedAlerts);
     handlePersistChanges(summaryNote, updatedAlerts, status, voiceNoteUrl, voiceNoteDuration);
@@ -244,8 +389,9 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
     }
   };
 
-  // Audio Recording Handlers
+  // Audio Recording Handlers (Simulated Vocal Dictation with automatic text & diff extraction)
   const handleStartRecording = () => {
+    if (!isRegisteredOnTournee) return;
     setIsRecording(true);
     setRecordingSeconds(0);
     recordingTimerRef.current = setInterval(() => {
@@ -259,13 +405,53 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
       recordingTimerRef.current = null;
     }
     setIsRecording(false);
-    const duration = Math.max(12, recordingSeconds);
+    const duration = Math.max(24, recordingSeconds || 24);
     const fakeUrl = `recorded-voice-${Date.now()}.mp3`;
 
+    const simulatedText = "Pour M. Jean Dupont, tension 13/8 ce matin, glycémie 1.85 g/L, pansement sacrum bourgeonnant. Mme Chantal Martin, glycémie 2.40 g/L, douleur cheville EVA 4/10 suite à une chute à domicile.";
+
+    const simulatedDiffs: PatientUpdate[] = [
+      {
+        patientId: 'p1',
+        patientName: 'Jean Dupont',
+        dar: {
+          cible: 'Constantes & Pansement Sacrum',
+          donnees: 'Tension artérielle 13/8 ce matin. Glycémie capillaire 1.85 g/L. Pansement sacrum au retrait : plaie propre, aspect bourgeonnant.',
+          actions: 'Nettoyage au sérum physiologique, réfection du pansement hydrocolloïde. Administration de l\'insuline selon protocole.',
+          resultats: 'Soin bien toléré par le patient. Plaie en bonne voie de cicatrisation, constantes contrôlées.'
+        },
+        changes: [
+          { field: 'Tension Artérielle', previousValue: '12/8', newValue: '13/8', actionType: 'UPDATE' },
+          { field: 'Glycémie Capillaire', previousValue: '1.40 g/L', newValue: '1.85 g/L', actionType: 'UPDATE' },
+          { field: 'Pansement Sacrum', previousValue: 'Non bourgeonnant', newValue: 'Aspect bourgeonnant propre', actionType: 'UPDATE' }
+        ]
+      },
+      {
+        patientId: 'p5',
+        patientName: 'Chantal Martin',
+        dar: {
+          cible: 'Glycémie élevée & Douleur cheville post-chute',
+          donnees: 'Glycémie capillaire mesurée à 2.40 g/L. Plainte de douleur au niveau de la cheville droite (EVA 4/10) suite à une chute à domicile ce matin.',
+          actions: 'Pose d\'une poche de glace sur la cheville, vérification de la mobilité, administration d\'antalgique (Paracétamol 1g). Médecin traitant prévenu.',
+          resultats: 'Douleur atténuée à EVA 2/10 après 30 min. Pas de déformation visible, repos recommandé au lit.'
+        },
+        changes: [
+          { field: 'Glycémie Capillaire', previousValue: '1.30 g/L', newValue: '2.40 g/L', actionType: 'ALERT' },
+          { field: 'Douleur Cheville', previousValue: 'Aucune', newValue: 'EVA 4/10 suite chute', actionType: 'ALERT' }
+        ]
+      }
+    ];
+
+    const newNote = summaryNote ? `${summaryNote}\n\n[Dictée vocale] : ${simulatedText}` : simulatedText;
+
+    setSummaryNote(newNote);
     setVoiceNoteUrl(fakeUrl);
     setVoiceNoteDuration(duration);
-    handlePersistChanges(summaryNote, alerts, status, fakeUrl, duration);
-    showToast("Relève vocale enregistrée et rattachée à la synthèse !");
+    setValidatedDiffs(simulatedDiffs);
+    setIsDiffsValidated(true);
+
+    handlePersistChanges(newNote, alerts, status, fakeUrl, duration, simulatedDiffs, true, validatedBy);
+    showToast("Vocal enregistré : texte transcrit et diffs patients extraits automatiquement !");
   };
 
   const handleCancelRecording = () => {
@@ -278,6 +464,7 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
   };
 
   const handleDeleteAudio = () => {
+    if (!isRegisteredOnTournee) return;
     setVoiceNoteUrl(undefined);
     setVoiceNoteDuration(undefined);
     setIsPlayingAudio(false);
@@ -310,12 +497,27 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
 
   // Sign-off status toggle
   const handleToggleStatus = () => {
+    if (!isRegisteredOnTournee) {
+      showToast("Seul un soignant inscrit sur cette tournée peut la valider.");
+      return;
+    }
     const nextStatus = status === TransmissionStatus.DRAFT ? TransmissionStatus.SUBMITTED : TransmissionStatus.DRAFT;
+    const nextValidatedBy = nextStatus === TransmissionStatus.SUBMITTED ? currentAccount.name : undefined;
     setStatus(nextStatus);
-    handlePersistChanges(summaryNote, alerts, nextStatus, voiceNoteUrl, voiceNoteDuration);
+    setValidatedBy(nextValidatedBy);
+    handlePersistChanges(
+      summaryNote, 
+      alerts, 
+      nextStatus, 
+      voiceNoteUrl, 
+      voiceNoteDuration, 
+      validatedDiffs, 
+      isDiffsValidated, 
+      nextValidatedBy
+    );
 
     if (nextStatus === TransmissionStatus.SUBMITTED) {
-      showToast(" Relève officielle transmise et validée avec succès !");
+      showToast(`Relève transmise et validée par ${currentAccount.name} !`);
     } else {
       showToast("Transmission repassée en mode Brouillon.");
     }
@@ -330,7 +532,7 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-24 max-w-6xl mx-auto">
+    <div className="space-y-6 pb-28 max-w-6xl mx-auto">
       {/* Toast Banner */}
       {toastMsg && (
         <div className="fixed top-20 right-4 z-50 bg-slate-900 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-2xl border border-sky-400/30 flex items-center gap-2 animate-bounce">
@@ -357,7 +559,7 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
               Synthèse Globale de Tournée
             </h1>
             <p className="text-xs text-sky-100/80">
-              Note de relève centralisée, enregistrement vocal brut et alertes prioritaires de la journée.
+              Note de relève centralisée, enregistrement vocal brut et diffs validés par patient.
             </p>
           </div>
 
@@ -365,7 +567,7 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
           <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/20">
             {status === TransmissionStatus.SUBMITTED ? (
               <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Relève Transmise & Signée
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Relève Transmise & Validée
               </span>
             ) : (
               <span className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
@@ -376,76 +578,208 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
         </div>
       </div>
 
-      {/* 1. CALENDAR DATE NAVIGATION BAR */}
-      <section className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
+      {/* ACCOUNT SIMULATION SELECTOR BAR */}
+      <div className="bg-slate-900 text-white p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-md border border-slate-700">
         <div className="flex items-center gap-2">
-          <button
-            onClick={handlePrevDay}
-            className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer font-bold active:scale-95"
-            title="Jour précédent"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-sky-50 text-[#006591] rounded-xl font-bold">
-              <CalendarIcon className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
-                Date Sélectionnée
-              </div>
-              <div className="text-sm sm:text-base font-black text-slate-900">
-                {formatFrenchDate(selectedDate)}
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={handleNextDay}
-            className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer font-bold active:scale-95"
-            title="Jour suivant"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+          <UserCheck className="w-4 h-4 text-sky-400" />
+          <span className="text-xs font-extrabold text-slate-200">Simuler un Compte Utilisateur :</span>
         </div>
 
-        {/* Quick Date Chips & Native Date Input */}
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={handleToday}
-            className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer border ${
-              selectedDate === '2026-07-27'
-                ? 'bg-[#006591] text-white border-[#006591] shadow-xs'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-            }`}
-          >
-            Aujourd'hui
-          </button>
+          {SIMULATED_ACCOUNTS.map(acc => {
+            const isSelected = selectedAccountId === acc.id;
+            const isAssigned = acc.assignedTournees.includes(selectedTournee);
+            return (
+              <button
+                key={acc.id}
+                onClick={() => setSelectedAccountId(acc.id)}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+                  isSelected
+                    ? 'bg-[#006591] text-white border-sky-400 shadow-xs'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${isAssigned ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                <span>{acc.name}</span>
+                <span className="text-[10px] opacity-75">({isAssigned ? 'Inscrit' : 'Non inscrit'})</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-          <button
-            onClick={() => setSelectedDate('2026-07-26')}
-            className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer border ${
-              selectedDate === '2026-07-26'
-                ? 'bg-[#006591] text-white border-[#006591] shadow-xs'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-            }`}
-          >
-            Hier
-          </button>
-
-          <div className="relative flex items-center">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3 py-1.5 rounded-xl border border-slate-200 outline-none cursor-pointer"
-            />
+      {/* NON-REGISTERED USER CONSULTATION BANNER */}
+      {!isRegisteredOnTournee && (
+        <div className="p-4 bg-amber-500/10 border-2 border-amber-400/60 rounded-2xl text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-500/20 text-amber-800 rounded-xl font-bold">
+              <Lock className="w-5 h-5 text-amber-700" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-amber-950 text-sm flex items-center gap-2">
+                <span>Mode Consultation Seule ({currentAccount.name})</span>
+                <span className="bg-amber-200 text-amber-900 text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
+                  Non inscrit sur cette tournée
+                </span>
+              </h4>
+              <p className="text-xs text-amber-800 font-medium mt-0.5">
+                Vous n'êtes pas affecté(e) à la <strong>{selectedTournee}</strong>. Vous pouvez consulter les transmissions vocales, la synthèse textuelle et les diffs validés, mais les boutons de modification et validation sont masqués.
+              </p>
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* VALIDATED TRANSMISSION LABEL BANNER FOR ALL PROFILES */}
+      {status === TransmissionStatus.SUBMITTED && (
+        <div className="p-4 bg-emerald-500/10 border-2 border-emerald-500/40 rounded-2xl text-emerald-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-emerald-600 text-white rounded-xl font-bold">
+              <UserCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-black text-emerald-950 text-sm flex items-center gap-2">
+                <span>Relève Transmise & Validée par {validatedBy || currentTx.validatedBy || currentTx.authorName || 'Julie R. (Titulaire)'}</span>
+                <span className="bg-emerald-200 text-emerald-900 text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
+                  Validation Officielle
+                </span>
+              </h4>
+              <p className="text-xs text-emerald-800 font-medium mt-0.5">
+                Cette transmission a été révisée et validée par <strong>{validatedBy || currentTx.validatedBy || currentTx.authorName || 'Julie R. (Titulaire)'}</strong>. Tous les soignants peuvent consulter cette relève.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 1. CALENDAR DATE NAVIGATION & TOURNEE SELECTION BAR */}
+      <section className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handlePrevDay}
+              className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer font-bold active:scale-95"
+              title="Jour précédent"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-sky-50 text-[#006591] rounded-xl font-bold">
+                <CalendarIcon className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
+                  Date Sélectionnée
+                </div>
+                <div className="text-sm sm:text-base font-black text-slate-900">
+                  {formatFrenchDate(selectedDate)}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleNextDay}
+              className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer font-bold active:scale-95"
+              title="Jour suivant"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Quick Date Chips */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleToday}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer border ${
+                selectedDate === '2026-07-27'
+                  ? 'bg-[#006591] text-white border-[#006591] shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+              }`}
+            >
+              Aujourd'hui
+            </button>
+
+            <button
+              onClick={() => setSelectedDate('2026-07-26')}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer border ${
+                selectedDate === '2026-07-26'
+                  ? 'bg-[#006591] text-white border-[#006591] shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+              }`}
+            >
+              Hier
+            </button>
+
+            <div className="relative flex items-center">
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3 py-1.5 rounded-xl border border-slate-200 outline-none cursor-pointer"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Tournée Selector Tabs */}
+        <div className="pt-2 border-t border-slate-100 flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold text-slate-500 mr-1">Tournée active :</span>
+          {tourneeColumns.length > 0 ? (
+            tourneeColumns.map((col) => {
+              const isSelected = selectedTournee === col.title;
+              return (
+                <button
+                  key={col.id}
+                  onClick={() => setSelectedTournee(col.title)}
+                  className={`px-3.5 py-1.5 rounded-xl font-extrabold text-xs transition-all cursor-pointer border ${
+                    isSelected
+                      ? 'bg-[#006591] text-white border-[#006591] shadow-xs'
+                      : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                  }`}
+                >
+                  {col.title}
+                </button>
+              );
+            })
+          ) : (
+            <>
+              <button
+                onClick={() => setSelectedTournee('Tournée Matin')}
+                className={`px-3.5 py-1.5 rounded-xl font-extrabold text-xs transition-all cursor-pointer border ${
+                  selectedTournee === 'Tournée Matin'
+                    ? 'bg-[#006591] text-white border-[#006591] shadow-xs'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                }`}
+              >
+                Tournée Matin
+              </button>
+              <button
+                onClick={() => setSelectedTournee('Tournée Soir')}
+                className={`px-3.5 py-1.5 rounded-xl font-extrabold text-xs transition-all cursor-pointer border ${
+                  selectedTournee === 'Tournée Soir'
+                    ? 'bg-[#006591] text-white border-[#006591] shadow-xs'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                }`}
+              >
+                Tournée Soir
+              </button>
+              <button
+                onClick={() => setSelectedTournee('Tournée Garde Cabinet')}
+                className={`px-3.5 py-1.5 rounded-xl font-extrabold text-xs transition-all cursor-pointer border ${
+                  selectedTournee === 'Tournée Garde Cabinet'
+                    ? 'bg-[#006591] text-white border-[#006591] shadow-xs'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                }`}
+              >
+                Tournée Garde Cabinet
+              </button>
+            </>
+          )}
         </div>
       </section>
 
-      {/* 2. RELÈVE VOCALE ("BRUT VOCAL") FIRST */}
+      {/* STEP 1: TRANSMISSION VOCAL ("BRUT VOCAL") & BOUTON COMPLÉMENT VOCAL */}
       <section className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2.5">
@@ -455,19 +789,30 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="font-extrabold text-slate-900 text-base">
-                  Relève Vocale ("Brut Vocal")
+                  1. Transmission Vocale ("Brut Vocal")
                 </h2>
                 {voiceNoteUrl && (
                   <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 font-black text-xs">
-                    Audio Attaché
+                    Audio Rattaché
                   </span>
                 )}
               </div>
               <p className="text-xs text-slate-500">
-                Dictée vocale rapide pour expliciter les détails oraux de la relève
+                Dictée vocale et compléments oraux pour la relève de tournée
               </p>
             </div>
           </div>
+
+          {/* Button to add additional vocal */}
+          {isRegisteredOnTournee && (
+            <button
+              onClick={handleStartRecording}
+              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+            >
+              <Mic className="w-4 h-4" />
+              <span>Ajouter un complément vocal</span>
+            </button>
+          )}
         </div>
 
         {/* Audio Recording / Playback Interface */}
@@ -478,46 +823,39 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
             </div>
             <div className="max-w-md mx-auto space-y-1">
               <h3 className="font-extrabold text-slate-800 text-sm">
-                Enregistrer une relève vocale
+                Aucune relève vocale enregistrée
               </h3>
               <p className="text-xs text-slate-500">
                 Dictez les consignes orales de fin de tournée pour l'infirmier(e) qui prend la suite.
               </p>
             </div>
 
-            <div className="flex flex-wrap justify-center gap-3">
-              <button
-                onClick={handleStartRecording}
-                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-extrabold text-xs px-5 py-3 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
-              >
-                <Mic className="w-4 h-4" />
-                <span>Démarrer la dictée vocale</span>
-              </button>
-            </div>
+            {isRegisteredOnTournee && (
+              <div className="flex flex-wrap justify-center gap-3">
+                <button
+                  onClick={handleStartRecording}
+                  className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-extrabold text-xs px-5 py-3 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  <Mic className="w-4 h-4" />
+                  <span>Démarrer la dictée vocale</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* Live Recording active state */}
-        {isRecording && (
+        {isRecording && isRegisteredOnTournee && (
           <div className="bg-rose-50 border-2 border-rose-400/80 rounded-2xl p-6 text-center space-y-4 animate-pulse">
             <div className="flex items-center justify-center gap-2">
               <span className="w-3.5 h-3.5 rounded-full bg-rose-600 animate-ping" />
               <span className="font-black text-rose-700 text-sm tracking-wider uppercase">
-                Enregistrement en cours...
+                Enregistrement vocal en cours...
               </span>
             </div>
 
             <div className="text-3xl font-black text-rose-900 font-mono">
               {formatSeconds(recordingSeconds)}
-            </div>
-
-            {/* Equalizer animation */}
-            <div className="flex items-center justify-center gap-1.5 h-8">
-              <span className="w-1.5 bg-rose-500 rounded-full animate-[bounce_1s_infinite_100ms] h-6" />
-              <span className="w-1.5 bg-rose-600 rounded-full animate-[bounce_1s_infinite_300ms] h-8" />
-              <span className="w-1.5 bg-rose-500 rounded-full animate-[bounce_1s_infinite_200ms] h-4" />
-              <span className="w-1.5 bg-rose-600 rounded-full animate-[bounce_1s_infinite_400ms] h-7" />
-              <span className="w-1.5 bg-rose-500 rounded-full animate-[bounce_1s_infinite_150ms] h-5" />
             </div>
 
             <div className="flex justify-center gap-3 pt-2">
@@ -526,7 +864,7 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
                 className="flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer transition-all active:scale-95"
               >
                 <Square className="w-4 h-4 fill-current" />
-                <span>Terminer & Sauvegarder</span>
+                <span>Terminer & Rattaché</span>
               </button>
 
               <button
@@ -549,7 +887,7 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
                 </div>
                 <div>
                   <div className="text-xs font-black text-purple-200">
-                    Relève Vocale Rattachée
+                    Transmission Vocale Enregistrée
                   </div>
                   <div className="text-[11px] text-slate-300">
                     Durée totale : {formatSeconds(voiceNoteDuration)}
@@ -590,7 +928,7 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
             </div>
 
             {/* Player Controls */}
-            <div className="flex items-center justify-between pt-1">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
               <button
                 onClick={handleTogglePlayAudio}
                 className="flex items-center gap-2 bg-white text-slate-900 font-extrabold text-xs px-4 py-2 rounded-xl shadow-md hover:bg-sky-50 cursor-pointer transition-all active:scale-95"
@@ -606,27 +944,29 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
                 )}
               </button>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleStartRecording}
-                  className="text-xs font-bold text-slate-300 hover:text-white underline cursor-pointer"
-                >
-                  Ré-enregistrer
-                </button>
-                <span className="text-slate-500">•</span>
-                <button
-                  onClick={handleDeleteAudio}
-                  className="text-xs font-bold text-rose-300 hover:text-rose-100 underline cursor-pointer"
-                >
-                  Effacer
-                </button>
-              </div>
+              {isRegisteredOnTournee && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleStartRecording}
+                    className="text-xs font-bold text-slate-300 hover:text-white underline cursor-pointer"
+                  >
+                    Compléter l'audio
+                  </button>
+                  <span className="text-slate-500">•</span>
+                  <button
+                    onClick={handleDeleteAudio}
+                    className="text-xs font-bold text-rose-300 hover:text-rose-100 underline cursor-pointer"
+                  >
+                    Effacer
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
       </section>
 
-      {/* 3. SYNTHÈSE (EXTRACTION TEXTUELLE DU VOCAL) SECOND */}
+      {/* STEP 2: TEXT EXTRACTED FROM VOCAL (SYNTHÈSE ET EXTRACTION TEXTUELLE) */}
       <section className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2.5">
@@ -635,10 +975,10 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
             </div>
             <div>
               <h2 className="font-extrabold text-slate-900 text-base">
-                Synthèse (Extraction textuelle du vocal)
+                2. Texte Extrait du Vocal (Synthèse globale)
               </h2>
               <p className="text-xs text-slate-500">
-                Transcription et synthèse rédigée automatiquement à partir de l'enregistrement vocal de relève
+                Transcription et synthèse rédigée à partir de la relève vocale
               </p>
             </div>
           </div>
@@ -649,14 +989,19 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
           <textarea
             value={summaryNote}
             onChange={(e) => handleNoteChange(e.target.value)}
-            placeholder="La synthèse apparaîtra ici sous forme d'extraction textuelle de votre relève vocale..."
+            disabled={!isRegisteredOnTournee}
+            placeholder="La synthèse et le texte extrait du vocal apparaîtront ici..."
             rows={8}
-            className="w-full bg-slate-50/70 focus:bg-white text-slate-800 text-xs sm:text-sm leading-relaxed p-4 rounded-2xl border border-slate-200 focus:border-[#006591] focus:ring-2 focus:ring-sky-100 outline-none transition-all resize-y font-medium"
+            className={`w-full text-slate-800 text-xs sm:text-sm leading-relaxed p-4 rounded-2xl border transition-all resize-y font-medium outline-none ${
+              isRegisteredOnTournee 
+                ? 'bg-slate-50/70 focus:bg-white border-slate-200 focus:border-[#006591] focus:ring-2 focus:ring-sky-100'
+                : 'bg-slate-100/80 border-slate-200 text-slate-700 cursor-not-allowed'
+            }`}
           />
 
           <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1.5 px-1 font-medium">
             <span className="flex items-center gap-1 text-emerald-600 font-bold">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Enregistré automatiquement
+              <CheckCircle2 className="w-3.5 h-3.5" /> Synchronisé en direct
             </span>
             <span>
               {summaryNote.length} caractères • {summaryNote.trim() ? summaryNote.trim().split(/\s+/).length : 0} mots
@@ -665,49 +1010,174 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
         </div>
       </section>
 
-      {/* 5. CLEAN HANDOFF SIGN-OFF WORKFLOW (BOTTOM BAR) */}
-      <section className="bg-gradient-to-r from-slate-900 via-slate-800 to-[#006591] rounded-3xl p-6 text-white shadow-xl flex flex-wrap items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-sky-300 flex items-center gap-1">
-              <UserCheck className="w-4 h-4 text-sky-400" />
-              Rédigé par {currentTx.authorName}
-            </span>
-            <span className="text-slate-400">•</span>
-            <span className="text-xs text-slate-300">
-              Dernière MAJ : {new Date(currentTx.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          </div>
-
-          <div className="text-xs text-slate-300">
-            {alerts.length} alerte(s) signalée(s) • {voiceNoteUrl ? 'Audio rattaché' : 'Pas d\'audio'}
+      {/* STEP 3: TRANSMISSIONS DAR (DONNÉES - ACTIONS - RÉSULTATS) */}
+      <section className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 bg-[#006591]/10 text-[#006591] rounded-2xl font-bold">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="font-extrabold text-slate-900 text-base">
+                  3. Transmissions DAR - Fiches Patients ({validatedDiffs.length})
+                </h2>
+                {isDiffsValidated && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-[11px] flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" /> Formats DAR rattachés
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500">
+                Synthèse structurée (Données - Actions - Résultats) générée depuis la dictée vocale pour chaque dossier patient
+              </p>
+            </div>
           </div>
         </div>
 
-        <button
-          onClick={handleToggleStatus}
-          className={`flex items-center gap-2 px-6 py-3.5 rounded-2xl font-black text-xs sm:text-sm shadow-xl transition-all active:scale-95 cursor-pointer border ${
-            status === TransmissionStatus.SUBMITTED
-              ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-400/30'
-              : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white border-amber-300/30'
-          }`}
-        >
-          {status === TransmissionStatus.SUBMITTED ? (
-            <>
-              <CheckCircle2 className="w-5 h-5 text-emerald-200" />
-              <span>Relève Officielle Transmise ✓ (Déverrouiller)</span>
-            </>
-          ) : (
-            <>
-              <Send className="w-5 h-5 text-amber-200" />
-              <span>Signer & Valider la Relève Officielle</span>
-            </>
-          )}
-        </button>
+        {validatedDiffs.length === 0 ? (
+          <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-center space-y-2">
+            <p className="text-xs font-semibold text-slate-500">
+              Aucune transmission DAR n'a encore été générée pour cette tournée.
+            </p>
+            {isRegisteredOnTournee && (
+              <p className="text-xs text-[#006591] font-bold">
+                Cliquez sur le bouton "Démarrer la dictée vocale" en haut de la page pour créer automatiquement les transmissions DAR.
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {validatedDiffs.map((patientUpdate, idx) => {
+              const dar = patientUpdate.dar || {
+                cible: patientUpdate.changes.map(c => c.field).join(', ') || 'Suivi clinique',
+                donnees: patientUpdate.changes.map(c => `${c.field}: ${c.newValue}`).join('. ') || 'Constats effectués lors du passage.',
+                actions: 'Soins infirmiers et vérifications réalisés selon prescriptions.',
+                resultats: 'Patient stable, surveillance poursuivie.'
+              };
+
+              return (
+                <div key={idx} className="bg-slate-50/90 rounded-2xl p-4 border border-slate-200 space-y-3 shadow-2xs">
+                  {/* Fiche Patient Header */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-[#006591] text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+                        {patientUpdate.patientName.charAt(0)}
+                      </div>
+                      <div>
+                        <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
+                          <span>{patientUpdate.patientName}</span>
+                          <span className="text-[10px] bg-sky-100 text-[#006591] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                            Fiche Patient
+                          </span>
+                        </h3>
+                        {dar.cible && (
+                          <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                            Cible : <span className="text-slate-800 font-bold">{dar.cible}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleInspectPatientClick(patientUpdate.patientId, patientUpdate.patientName)}
+                      className="text-xs font-extrabold text-[#006591] bg-white hover:bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-200 shadow-2xs transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>Consulter Dossier Patient</span>
+                      <span>➔</span>
+                    </button>
+                  </div>
+
+                  {/* DAR Blocks Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {/* D - Données */}
+                    <div className="bg-white p-3.5 rounded-xl border border-sky-200/70 shadow-2xs space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-sky-800">
+                        <span className="w-5 h-5 rounded-md bg-sky-600 text-white flex items-center justify-center text-[11px] font-black">
+                          D
+                        </span>
+                        <span className="text-xs font-black uppercase tracking-wider">
+                          Données (Constats)
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                        {dar.donnees}
+                      </p>
+                    </div>
+
+                    {/* A - Actions */}
+                    <div className="bg-white p-3.5 rounded-xl border border-amber-200/70 shadow-2xs space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-amber-800">
+                        <span className="w-5 h-5 rounded-md bg-amber-600 text-white flex items-center justify-center text-[11px] font-black">
+                          A
+                        </span>
+                        <span className="text-xs font-black uppercase tracking-wider">
+                          Actions (Soins)
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                        {dar.actions}
+                      </p>
+                    </div>
+
+                    {/* R - Résultats */}
+                    <div className="bg-white p-3.5 rounded-xl border border-emerald-200/70 shadow-2xs space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-emerald-800">
+                        <span className="w-5 h-5 rounded-md bg-emerald-600 text-white flex items-center justify-center text-[11px] font-black">
+                          R
+                        </span>
+                        <span className="text-xs font-black uppercase tracking-wider">
+                          Résultats (Évolution)
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                        {dar.resultats}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
+      {/* STEP 4 & BOTTOM ACTION BAR: FINAL TRANSMISSION VALIDATION */}
+      {isRegisteredOnTournee && (
+        <section className="bg-gradient-to-r from-slate-900 via-[#003852] to-slate-900 rounded-3xl p-6 text-white shadow-xl border border-sky-900/40 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="space-y-1 text-center sm:text-left">
+            <h3 className="text-sm font-extrabold text-white flex items-center justify-center sm:justify-start gap-2">
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>Finalisation & Validation de Relève</span>
+            </h3>
+            <p className="text-xs text-sky-200">
+              Valider officiellement la transmission de tournée pour l'ensemble du cabinet.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-3 w-full sm:w-auto">
+            {/* BUTTON TO VALIDATE THE TRANSMISSION */}
+            <button
+              onClick={handleToggleStatus}
+              className={`flex items-center gap-2 font-black text-xs px-6 py-3.5 rounded-2xl shadow-lg transition-all active:scale-95 cursor-pointer ${
+                status === TransmissionStatus.SUBMITTED
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  : 'bg-[#006591] hover:bg-[#004c6e] text-white border border-sky-400/40'
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>
+                {status === TransmissionStatus.SUBMITTED
+                  ? `Transmission Validée (${validatedBy || 'Soignant'})`
+                  : 'Valider la transmission'}
+              </span>
+            </button>
+          </div>
+        </section>
+      )}
+
       {/* ADD ALERT MODAL */}
-      {isAddAlertModalOpen && (
+      {isAddAlertModalOpen && isRegisteredOnTournee && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -815,7 +1285,6 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
                   </label>
                 </div>
 
-                {/* Quick Presets */}
                 <div className="flex flex-wrap gap-1 mb-2">
                   {[
                     '⚡ Chute à domicile',
@@ -865,6 +1334,17 @@ export const TransmissionPage: React.FC<TransmissionPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* VOICE REVIEW & PATIENT DIFF VALIDATION MODAL */}
+      <VoiceReviewDiffModal
+        isOpen={isVoiceDiffModalOpen}
+        onClose={() => setIsVoiceDiffModalOpen(false)}
+        extractionData={voiceExtractionData}
+        audioUrl={voiceNoteUrl}
+        audioDuration={voiceNoteDuration || 24}
+        onApplyUpdates={handleApplyVoiceUpdates}
+        isLoading={isProcessingVoice}
+      />
     </div>
   );
 };

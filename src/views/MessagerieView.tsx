@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { Conversation, ChatMessage } from '../types';
-import { PageVoiceMicButton } from '../components/PageVoiceMicButton';
+import React, { useState, useMemo } from 'react';
+import { Conversation, ChatMessage, Patient, Doctor } from '../types';
 import { 
   ShieldCheck, 
   Lock, 
@@ -10,34 +9,109 @@ import {
   Send, 
   Mic, 
   FileText, 
-  MoreVertical,
+  FolderHeart,
+  Stethoscope,
+  UserCheck,
   CheckCheck,
   ArrowLeft
 } from 'lucide-react';
 
 interface MessagerieViewProps {
   conversations: Conversation[];
+  patients?: Patient[];
+  doctors?: Doctor[];
   onSendMessage: (conversationId: string, text: string) => void;
   onViewDossier?: (patientId: string) => void;
+  onViewDoctor?: (doctorName: string) => void;
   onSuccessToast?: (msg: string) => void;
 }
 
 export const MessagerieView: React.FC<MessagerieViewProps> = ({
   conversations,
+  patients = [],
+  doctors = [],
   onSendMessage,
   onViewDossier,
+  onViewDoctor,
   onSuccessToast
 }) => {
-  const [activeConvId, setActiveConvId] = useState<string>(conversations[0]?.id || '');
+  // Merge conversations with all patients and health professionals
+  const allMergedConversations = useMemo(() => {
+    const list: Conversation[] = [...conversations];
+
+    // Add patients not already in conversations
+    patients.forEach(p => {
+      const exists = list.some(c => 
+        c.contactName.toLowerCase().includes(p.name.toLowerCase()) || 
+        (c.patientId && c.patientId === p.id)
+      );
+      if (!exists) {
+        list.push({
+          id: `conv-patient-${p.id}`,
+          patientId: p.id,
+          contactName: `${p.name} (Patient)`,
+          contactRole: `Patient • Secu: ${p.secuNumber || 'N/A'}`,
+          avatarUrl: p.photoUrl,
+          isOnline: false,
+          lastMessage: 'Démarrez une discussion chiffrée avec le patient.',
+          lastTime: 'Récent',
+          unreadCount: 0,
+          category: 'patient',
+          messages: [
+            {
+              id: `m-init-${p.id}`,
+              conversationId: `conv-patient-${p.id}`,
+              senderName: p.name,
+              text: `Canal de messagerie sécurisé (HDS) ouvert pour ${p.name}.`,
+              time: '09:00',
+              isMe: false
+            }
+          ]
+        });
+      }
+    });
+
+    // Add doctors/professionals not already in conversations
+    doctors.forEach(d => {
+      const exists = list.some(c => c.contactName.toLowerCase().includes(d.name.toLowerCase()));
+      if (!exists) {
+        list.push({
+          id: `conv-doc-${d.id}`,
+          contactName: `${d.name} (Médecin)`,
+          contactRole: `${d.specialty} • ${d.phone}`,
+          contactInitials: d.name.replace('Dr.', '').trim().split(' ').map(n => n[0]).join(''),
+          isOnline: true,
+          lastMessage: 'Démarrez une échange sécurisé avec le professionnel.',
+          lastTime: 'En ligne',
+          unreadCount: 0,
+          category: 'medecin',
+          messages: [
+            {
+              id: `m-init-doc-${d.id}`,
+              conversationId: `conv-doc-${d.id}`,
+              senderName: d.name,
+              text: `Bonjour, vous êtes en contact sécurisé avec ${d.name} (${d.specialty}).`,
+              time: '08:30',
+              isMe: false
+            }
+          ]
+        });
+      }
+    });
+
+    return list;
+  }, [conversations, patients, doctors]);
+
+  const [activeConvId, setActiveConvId] = useState<string>(allMergedConversations[0]?.id || '');
   const [showChatOnMobile, setShowChatOnMobile] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<'tous' | 'non-lus' | 'medecin' | 'patient'>('tous');
   const [inputText, setInputText] = useState('');
   const [attachment, setAttachment] = useState<string | null>(null);
 
-  const activeConv = conversations.find(c => c.id === activeConvId) || conversations[0];
+  const activeConv = allMergedConversations.find(c => c.id === activeConvId) || allMergedConversations[0];
 
-  const filteredConversations = conversations.filter(c => {
+  const filteredConversations = allMergedConversations.filter(c => {
     const matchesSearch = c.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.lastMessage.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -213,21 +287,34 @@ export const MessagerieView: React.FC<MessagerieViewProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-1">
-              <button 
-                onClick={() => onViewDossier && onViewDossier('p1')}
-                title="Consulter le Dossier Patient" 
-                className="p-2 text-slate-500 hover:text-[#006591] rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <FileText className="w-5 h-5" />
-              </button>
-              <button 
-                onClick={() => onSuccessToast && onSuccessToast("Options de conversation chiffrée HDS.")}
-                title="Options" 
-                className="p-2 text-slate-500 hover:text-[#006591] rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <MoreVertical className="w-5 h-5" />
-              </button>
+            <div className="flex items-center gap-2">
+              {activeConv.category === 'patient' || activeConv.patientId || activeConv.contactName.toLowerCase().includes('patient') ? (
+                <button 
+                  onClick={() => {
+                    const pid = activeConv.patientId || 'p1';
+                    if (onViewDossier) onViewDossier(pid);
+                  }}
+                  title="Consulter le Dossier Patient" 
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#006591] border border-sky-200 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                >
+                  <FolderHeart className="w-4 h-4 text-[#006591]" />
+                  <span className="hidden sm:inline">Consulter dossier patient</span>
+                  <span className="sm:hidden">Dossier</span>
+                </button>
+              ) : (
+                <button 
+                  onClick={() => {
+                    if (onViewDoctor) onViewDoctor(activeConv.contactName);
+                    else if (onSuccessToast) onSuccessToast(`Fiche de ${activeConv.contactName} consultée.`);
+                  }}
+                  title="Consulter la fiche du professionnel" 
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#006591] border border-sky-200 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                >
+                  <Stethoscope className="w-4 h-4 text-[#006591]" />
+                  <span className="hidden sm:inline">Fiche du professionnel</span>
+                  <span className="sm:hidden">Fiche Pro</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -339,21 +426,6 @@ export const MessagerieView: React.FC<MessagerieViewProps> = ({
           Sélectionnez une conversation
         </div>
       )}
-
-      {/* Voice Assistant button for Messagerie */}
-      <PageVoiceMicButton
-        pageTitle="Messagerie Sécurisée HDS"
-        placeholderExamples={[
-          "Rédiger un message pour le Dr Morel",
-          "Demander un renouvellement d'ordonnance",
-          "Informer la pharmacie de la livraison"
-        ]}
-        onVoiceCommand={(cmd) => {
-          if (activeConvId) {
-            onSendMessage(activeConvId, cmd);
-          }
-        }}
-      />
     </div>
   );
 };

@@ -38,12 +38,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'patients' as NavView, label: 'Patients', icon: Users },
     { id: 'doctors' as NavView, label: 'Professionnels', icon: Stethoscope },
     { id: 'tournee-manager' as NavView, label: 'Tournées', icon: Route },
-    { id: 'tournee-scheduling' as NavView, label: 'Planning & Gardes', icon: CalendarDays },
+    { id: 'tournee-scheduling' as NavView, label: 'Planning', icon: CalendarDays },
     { id: 'route-planner' as NavView, label: 'Trajet', icon: Map },
     { id: 'voice-transmission-hub' as NavView, label: 'Transmission', icon: Mic, activeCheck: isVoiceActive },
     { id: 'cotations' as NavView, label: 'Cotations', icon: Calculator },
     { id: 'messagerie' as NavView, label: 'Messagerie', icon: Mail },
-    { id: 'notes' as NavView, label: 'Notes Personnelles', icon: StickyNote },
+    { id: 'notes' as NavView, label: 'Notes', icon: StickyNote },
     { id: 'settings' as NavView, label: 'Settings', icon: Settings }
   ];
 

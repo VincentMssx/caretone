@@ -533,26 +533,6 @@ export const NotesView: React.FC<NotesViewProps> = ({
           </div>
         </div>
       )}
-
-      {/* Voice Assistant button for Notes */}
-      <PageVoiceMicButton
-        pageTitle="Notes Personnelles IDEL"
-        placeholderExamples={[
-          "Créer note : Rappeler le médecin traitant à 17h",
-          "Rappel matériel : Commander compresses stériles",
-          "Note tournée : Route barrée rue Rousseau"
-        ]}
-        onVoiceCommand={(cmd) => {
-          onAddNote({
-            title: "Note dictée vocale",
-            content: cmd,
-            category: "pense-bete",
-            color: "purple",
-            isPinned: true,
-            tags: ["vocale", "pense-bete"]
-          });
-        }}
-      />
     </div>
   );
 };

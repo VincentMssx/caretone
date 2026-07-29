@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { CotationItem, Patient } from '../types';
 import { CotationAssistantPanel } from '../components/CotationAssistantPanel';
-import { PageVoiceMicButton } from '../components/PageVoiceMicButton';
 import { 
   Download, 
   Plus, 
@@ -317,27 +316,6 @@ export const CotationsView: React.FC<CotationsViewProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Voice Assistant button for Cotations */}
-      <PageVoiceMicButton
-        pageTitle="Cotations & Facturation NGAP"
-        placeholderExamples={[
-          "Ajouter cotation AMI 4 pour M. Dupont",
-          "Créer forfait bilan BSI 15€",
-          "Saisir indemnité forfaitaire de déplacement IFD"
-        ]}
-        onVoiceCommand={(cmd) => {
-          if (onAddCotation) {
-            onAddCotation({
-              date: 'Aujourd\'hui',
-              patientName: 'Mme / M. Patient (Dicté)',
-              code: 'AMI 4 + IFD',
-              description: cmd,
-              amount: 15.10
-            });
-          }
-        }}
-      />
     </div>
   );
 };

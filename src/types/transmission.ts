@@ -31,6 +31,10 @@ export interface DailyGlobalTransmission {
   authorName: string;
   authorRole?: string;
   alerts: PatientAlert[];
+  validatedDiffs?: PatientUpdate[];
+  isDiffsValidated?: boolean;
+  validatedBy?: string;
+  validatedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -62,5 +66,35 @@ export interface DarTransmission {
   resultats: string;
   constantes: Constantes;
   diffBadges?: DiffBadge[];
+}
+
+export interface PatientChange {
+  id?: string;
+  field: string; // e.g., tension, glycémie, état plaie, humeur, traitement
+  previousValue: string; // Existing value in DB (or 'Aucune' if new)
+  newValue: string; // Value extracted from voice note
+  actionType: 'UPDATE' | 'ALERT' | 'INFO';
+  isManuallyEdited?: boolean; // Set to true when nurse manually edits via inline pencil
+  selected?: boolean; // Toggled via line checkbox
+}
+
+export interface PatientDAR {
+  cible?: string;
+  donnees: string;
+  actions: string;
+  resultats: string;
+}
+
+export interface PatientUpdate {
+  patientId: string;
+  patientName: string;
+  selected?: boolean; // Toggled via patient card checkbox
+  changes: PatientChange[];
+  dar?: PatientDAR;
+}
+
+export interface VoiceExtractionResult {
+  rawTranscript: string;
+  patientUpdates: PatientUpdate[];
 }
 

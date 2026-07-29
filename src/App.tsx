@@ -307,14 +307,14 @@ export function App() {
       case 'patients': return 'Patients';
       case 'doctors': return 'Professionnels de Santé';
       case 'tournee-manager': return 'Tournées';
-      case 'tournee-scheduling': return 'Planning & Gardes';
+      case 'tournee-scheduling': return 'Planning';
       case 'route-planner': return 'Trajet';
       case 'patient-detail': return 'Dossier Patient';
       case 'voice-transmission-hub':
       case 'live-voice-transmission': return 'Transmission';
       case 'cotations': return 'Cotations';
       case 'messagerie': return 'Messagerie';
-      case 'notes': return 'Notes Personnelles';
+      case 'notes': return 'Notes';
       case 'settings': return 'Settings';
       default: return 'Accueil';
     }
@@ -459,11 +459,14 @@ export function App() {
           {currentView === 'messagerie' && (
             <MessagerieView
               conversations={conversations}
+              patients={patients}
+              doctors={doctors}
               onSendMessage={handleSendMessage}
               onViewDossier={(patientId) => {
                 setSelectedPatientDetailId(patientId);
                 setCurrentView('patient-detail');
               }}
+              onViewDoctor={(docName) => handleOpenDoctorInfoByName(docName)}
               onSuccessToast={showToast}
             />
           )}

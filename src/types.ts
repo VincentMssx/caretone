@@ -105,6 +105,7 @@ export interface ChatMessage {
 
 export interface Conversation {
   id: string;
+  patientId?: string;
   contactName: string;
   contactRole: string; // e.g. "Médecin Traitant", "Patient", "Collègue"
   contactInitials?: string;

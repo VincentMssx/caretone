@@ -1,0 +1,1 @@
+{"name":"@carevoice/bff","version":"1.0.0","private":true,"scripts":{"dev":"bun run --watch src/index.ts","build":"bun build src/index.ts --outdir dist","test":"bun test"},"dependencies":{"@carevoice/crypto":"workspace:*","@carevoice/types":"workspace:*","hono":"^4.5.0","zod":"^3.24.0"}}

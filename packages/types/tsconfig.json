@@ -12,9 +12,11 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    "composite": true,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true,
-    "composite": true
-  }
+    "sourceMap": true
+  },
+  "include": ["."],
+  "exclude": ["node_modules", "dist"]
 }

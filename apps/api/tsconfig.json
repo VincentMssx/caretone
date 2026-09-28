@@ -12,9 +12,13 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "composite": true
-  }
+    "composite": true,
+    "paths": {
+      "@carevoice/*": ["../../packages/*/index.ts"]
+    }
+  },
+  "references": [
+  ],
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
 }

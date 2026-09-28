@@ -1,0 +1,9 @@
+[test]
+timeout = 30000
+coverage = true
+
+[build]
+target = "bun"
+
+[install]
+mode = "auto"

@@ -1,0 +1,6 @@
+.next
+.env
+.env.local
+.env.*.local
+bun.lockb
+node_modules

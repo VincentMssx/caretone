@@ -60,11 +60,32 @@ export function RouteMap({ stops }: { stops: Patient[] }) {
         const data = (await response.json()) as { routes?: { geometry: GeoJSON.LineString }[] };
         if (!data.routes?.[0]) throw new Error('route missing');
         L.geoJSON(data.routes[0].geometry, {
-          style: { color: '#255d4b', weight: 5, opacity: 0.82 },
+          style: { color: '#ffffff', weight: 11, opacity: 0.96, lineCap: 'round', lineJoin: 'round' },
         }).addTo(map);
+        L.geoJSON(data.routes[0].geometry, {
+          style: {
+            className: 'route-path-flow',
+            color: '#167455',
+            weight: 7,
+            opacity: 1,
+            lineCap: 'round',
+            lineJoin: 'round',
+          },
+        }).addTo(map);
+        const routePoints = data.routes[0].geometry.coordinates.map(
+          ([lng, lat]) => [lat, lng] as [number, number],
+        );
+        map.fitBounds(L.latLngBounds(routePoints), { padding: [38, 38] });
         if (!disposed) setRoutingState('ready');
       } catch {
-        L.polyline(points, { color: '#255d4b', weight: 4, opacity: 0.7, dashArray: '7 8' }).addTo(map);
+        L.polyline(points, { color: '#ffffff', weight: 10, opacity: 0.92 }).addTo(map);
+        L.polyline(points, {
+          className: 'route-path-flow',
+          color: '#167455',
+          weight: 6,
+          opacity: 1,
+          dashArray: '10 9',
+        }).addTo(map);
         if (!disposed) setRoutingState('fallback');
       }
     }
@@ -80,9 +101,10 @@ export function RouteMap({ stops }: { stops: Patient[] }) {
     <div className="map-canvas real-map-wrap">
       <div ref={containerRef} className="real-route-map" aria-label="Carte réelle de la tournée dans Nantes" />
       <div className="map-legend">
-        {routingState === 'loading' && 'Calcul du trajet routier…'}
-        {routingState === 'ready' && 'Trajet routier · fond OpenStreetMap'}
-        {routingState === 'fallback' && 'Adresses géolocalisées · tracé simplifié hors connexion'}
+        <span className="route-line-sample" aria-hidden="true" />
+        {routingState === 'loading' && 'Calcul du tracé…'}
+        {routingState === 'ready' && 'Tracé de la tournée · sens C → 8'}
+        {routingState === 'fallback' && 'Tracé simplifié · sens C → 8'}
       </div>
     </div>
   );

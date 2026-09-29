@@ -1677,8 +1677,35 @@
   background: #c39746;
 }
 .real-map-wrap .map-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   z-index: 500;
+  color: #204f40;
+  font-weight: 600;
   box-shadow: 0 2px 10px #26372b25;
+}
+.route-line-sample {
+  width: 28px;
+  height: 0;
+  border-top: 5px solid #167455;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px white;
+}
+.route-path-flow {
+  stroke-dasharray: 14 7;
+  animation: route-flow 1.15s linear infinite;
+}
+@keyframes route-flow {
+  to {
+    stroke-dashoffset: -21;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-path-flow {
+    animation: none;
+    stroke-dasharray: none;
+  }
 }
 .leaflet-popup-content {
   font: 11px/1.55 Inter, sans-serif;

@@ -1710,10 +1710,15 @@
 .leaflet-popup-content {
   font: 11px/1.55 Inter, sans-serif;
 }
-.map-canvas svg {
+.map-canvas > svg {
   width: 100%;
   max-width: 720px;
   filter: drop-shadow(0 8px 20px #52644b22);
+}
+.real-route-map .leaflet-overlay-pane svg {
+  width: auto;
+  max-width: none;
+  filter: none;
 }
 .map-legend {
   position: absolute;

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Patient, patients, readRecords, SavedRecord } from '../lib/demo';
+import { CABINET, RouteMap } from './RouteMap';
 import './demo.css';
 
 export type FeatureView =
@@ -1020,63 +1021,23 @@ function Planning({ setNotice }: { setNotice: (message: string) => void }) {
 }
 
 function RoutePlanner({ setNotice }: { setNotice: (message: string) => void }) {
-  const [optimized, setOptimized] = useState(false);
+  const [optimized, setOptimized] = useState(true);
   const stops = optimized
-    ? [patients[0], patients[1], patients[4], patients[7], patients[6], patients[3], patients[2], patients[5]]
+    ? [patients[0], patients[1], patients[5], patients[3], patients[2], patients[6], patients[7], patients[4]]
     : patients.slice(0, 8);
   const times = optimized
-    ? ['07:30', '08:00', '08:32', '08:55', '09:22', '09:48', '10:18', '10:55']
-    : stops.map((p) => p.time);
+    ? ['07:30', '08:00', '08:32', '09:02', '09:34', '10:05', '10:37', '11:05']
+    : stops.map((patient) => patient.time);
+  const navigationUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(CABINET.address)}&destination=${encodeURIComponent(stops.at(-1)?.address ?? CABINET.address)}&waypoints=${encodeURIComponent(stops.slice(0, -1).map((stop) => stop.address).join('|'))}&travelmode=driving`;
+
   return (
     <div className="route-layout">
       <section className="panel route-map">
         <div className="map-top">
-          <span className="soft-tag">APERÇU DE LA TOURNÉE</span>
-          <span>12,8 km · {optimized ? '41 min' : '52 min'} de trajet estimé</span>
+          <span className="soft-tag">CARTE RÉELLE · NANTES</span>
+          <span>{optimized ? '16,4 km · 44 min' : '21,7 km · 58 min'} de conduite estimée</span>
         </div>
-        <div className="map-canvas" aria-label="Schéma fictif de l’itinéraire">
-          <svg viewBox="0 0 700 360" role="img" aria-label="Trajet du cabinet vers huit patients">
-            <path
-              d="M55 285 C145 235 110 105 230 115 S360 255 430 190 S520 55 650 90"
-              fill="none"
-              stroke="#b8c8ad"
-              strokeWidth="8"
-              strokeLinecap="round"
-              strokeDasharray="2 15"
-            />
-            {stops.map((p, i) => {
-              const coords = [
-                [120, 245],
-                [195, 130],
-                [305, 170],
-                [405, 210],
-                [510, 115],
-                [620, 92],
-                [570, 230],
-                [665, 285],
-              ][i] || [0, 0];
-              return (
-                <g key={p.id}>
-                  <circle cx={coords[0]} cy={coords[1]} r="19" fill="#255d4b" />
-                  <text
-                    x={coords[0]}
-                    y={coords[1] + 5}
-                    textAnchor="middle"
-                    fill="white"
-                    fontSize="13"
-                  >
-                    {i + 1}
-                  </text>
-                </g>
-              );
-            })}
-            <circle cx="55" cy="285" r="22" fill="#d0ad62" />
-            <text x="55" y="290" textAnchor="middle" fill="white" fontSize="16">
-              C
-            </text>
-          </svg>
-          <div className="map-legend">Schéma de démonstration · aucune géolocalisation réelle</div>
-        </div>
+        <RouteMap stops={stops} />
       </section>
       <section className="panel route-list-panel">
         <div className="feature-panel-head">
@@ -1086,47 +1047,43 @@ function RoutePlanner({ setNotice }: { setNotice: (message: string) => void }) {
           </div>
           <button
             className="button secondary"
+            disabled={optimized}
             onClick={() => {
               setOptimized(true);
-              setNotice(
-                'Trajet optimisé : 11 minutes estimées économisées, horaires impératifs conservés.',
-              );
+              setNotice('Trajet optimisé : 14 minutes estimées économisées, horaires impératifs conservés.');
             }}
           >
             <Icon name="bolt" />
-            Optimiser
+            {optimized ? 'Trajet optimisé' : 'Optimiser'}
           </button>
         </div>
         <div className="route-start">
           <Icon name="flag" />
           <div>
-            <strong>Départ · Cabinet des Tilleuls</strong>
-            <span>07:20</span>
+            <strong>Départ · {CABINET.name}</strong>
+            <span>07:20 · {CABINET.address}</span>
           </div>
         </div>
         <ol className="route-stops">
-          {stops.map((p, i) => (
-            <li key={p.id}>
-              <span>{i + 1}</span>
+          {stops.map((patient, index) => (
+            <li key={patient.id}>
+              <span>{index + 1}</span>
               <div>
-                <strong>{p.name}</strong>
-                <small>{p.care}</small>
+                <strong>{patient.name}</strong>
+                <small>{patient.address}</small>
+                <small>{patient.care}</small>
               </div>
-              <time>{times[i]}</time>
+              <time>{times[index]}</time>
             </li>
           ))}
         </ol>
-        <button
-          className="button primary full"
-          onClick={() =>
-            setNotice(
-              'L’itinéraire de démonstration est prêt. Dans la version connectée, il pourra être ouvert dans l’application de navigation choisie.',
-            )
-          }
-        >
+        <a className="button primary full" href={navigationUrl} target="_blank" rel="noreferrer">
           <Icon name="navigation" />
-          Préparer la navigation
-        </button>
+          Ouvrir dans Google Maps
+        </a>
+        <p className="route-disclaimer">
+          Patients et soins fictifs · adresses de voirie réelles utilisées uniquement pour la démonstration.
+        </p>
       </section>
     </div>
   );

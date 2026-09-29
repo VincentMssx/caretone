@@ -60,16 +60,24 @@ export function RouteMap({ stops }: { stops: Patient[] }) {
         const data = (await response.json()) as { routes?: { geometry: GeoJSON.LineString }[] };
         if (!data.routes?.[0]) throw new Error('route missing');
         L.geoJSON(data.routes[0].geometry, {
-          style: { color: '#ffffff', weight: 11, opacity: 0.96, lineCap: 'round', lineJoin: 'round' },
+          style: { color: '#ffffff', weight: 14, opacity: 0.98, lineCap: 'round', lineJoin: 'round' },
+        }).addTo(map);
+        L.geoJSON(data.routes[0].geometry, {
+          style: {
+            color: '#e45535',
+            weight: 9,
+            opacity: 1,
+            lineCap: 'round',
+            lineJoin: 'round',
+          },
         }).addTo(map);
         L.geoJSON(data.routes[0].geometry, {
           style: {
             className: 'route-path-flow',
-            color: '#167455',
-            weight: 7,
+            color: '#ffe8b0',
+            weight: 3,
             opacity: 1,
             lineCap: 'round',
-            lineJoin: 'round',
           },
         }).addTo(map);
         const routePoints = data.routes[0].geometry.coordinates.map(
@@ -78,11 +86,11 @@ export function RouteMap({ stops }: { stops: Patient[] }) {
         map.fitBounds(L.latLngBounds(routePoints), { padding: [38, 38] });
         if (!disposed) setRoutingState('ready');
       } catch {
-        L.polyline(points, { color: '#ffffff', weight: 10, opacity: 0.92 }).addTo(map);
+        L.polyline(points, { color: '#ffffff', weight: 13, opacity: 0.96 }).addTo(map);
         L.polyline(points, {
           className: 'route-path-flow',
-          color: '#167455',
-          weight: 6,
+          color: '#e45535',
+          weight: 8,
           opacity: 1,
           dashArray: '10 9',
         }).addTo(map);

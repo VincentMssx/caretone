@@ -1688,17 +1688,17 @@
 .route-line-sample {
   width: 28px;
   height: 0;
-  border-top: 5px solid #167455;
+  border-top: 5px solid #e45535;
   border-radius: 4px;
   box-shadow: 0 0 0 2px white;
 }
 .route-path-flow {
-  stroke-dasharray: 14 7;
-  animation: route-flow 1.15s linear infinite;
+  stroke-dasharray: 2 12;
+  animation: route-flow 0.9s linear infinite;
 }
 @keyframes route-flow {
   to {
-    stroke-dashoffset: -21;
+    stroke-dashoffset: -14;
   }
 }
 @media (prefers-reduced-motion: reduce) {

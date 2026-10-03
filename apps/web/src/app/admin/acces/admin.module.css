@@ -1,0 +1,44 @@
+.page { min-height: 100vh; background: #f5f6f1; color: #173c32; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 5vw; border-bottom: 1px solid #dfe5dd; background: white; }
+.brand { display: flex; align-items: center; gap: 9px; color: #173c32; font-size: 20px; font-weight: 700; text-decoration: none; }
+.brand span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: #21624f; color: white; }
+.headerActions { display: flex; align-items: center; gap: 10px; }
+.headerActions a, .headerActions button { border: 1px solid #d7dfd9; border-radius: 8px; background: white; padding: 9px 12px; color: #42554e; font: inherit; font-size: 11px; text-decoration: none; cursor: pointer; }
+.main { width: min(1180px, 92vw); margin: 0 auto; padding: 44px 0 70px; }
+.heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 28px; }
+.eyebrow { color: #8a7853; font-size: 9px; font-weight: 700; letter-spacing: 1.7px; }
+.heading h1 { margin: 8px 0; font-family: Georgia, serif; font-size: 38px; font-weight: 400; }
+.heading p { color: #68766f; font-size: 13px; }
+.status { display: flex; gap: 22px; padding: 14px 18px; border: 1px solid #dce3dc; border-radius: 12px; background: white; }
+.status div { text-align: center; }
+.status strong, .status span { display: block; }
+.status strong { font-size: 20px; }
+.status span { color: #78867f; font-size: 8px; text-transform: uppercase; letter-spacing: .7px; }
+.notice { margin-bottom: 18px; padding: 12px 14px; border: 1px solid #ddcfa9; border-radius: 9px; background: #fff8e6; color: #705c32; font-size: 11px; }
+.tabs { display: flex; gap: 6px; margin-bottom: 18px; }
+.tabs button { border: 0; border-radius: 8px; padding: 10px 15px; background: transparent; color: #68766f; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.tabs .active { background: #e4ece6; color: #1c5746; }
+.badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; border-radius: 9px; background: #d5a84e; color: white; font-size: 8px; }
+.panel { overflow: hidden; border: 1px solid #dce3dc; border-radius: 14px; background: white; box-shadow: 0 8px 30px #3754450b; }
+.panelHeader { padding: 18px 20px; border-bottom: 1px solid #e6ebe6; }
+.panelHeader h2 { font-family: Georgia, serif; font-size: 20px; font-weight: 400; }
+.panelHeader p { margin-top: 5px; color: #7a8781; font-size: 10px; }
+.row { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(180px, 1.4fr) auto; align-items: center; gap: 18px; padding: 17px 20px; border-bottom: 1px solid #edf0ec; }
+.row:last-child { border-bottom: 0; }
+.identity { display: flex; align-items: center; gap: 12px; }
+.avatar { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; border-radius: 50%; background: #e5eee8; color: #23614f; font-size: 11px; font-weight: 700; }
+.identity strong, .identity small { display: block; }
+.identity strong { font-size: 12px; }
+.identity small, .detail { margin-top: 3px; color: #7b8982; font-size: 9px; }
+.message { color: #566860; font-size: 10px; line-height: 1.5; }
+.actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
+.actions button, .actions select { min-height: 34px; border: 1px solid #d8e0da; border-radius: 8px; background: white; padding: 0 10px; color: #42554e; font: inherit; font-size: 9px; cursor: pointer; }
+.actions .approve { border-color: #21624f; background: #21624f; color: white; }
+.actions .danger { color: #a14d3c; }
+.actions button:disabled { opacity: .5; cursor: wait; }
+.state { display: inline-flex; align-items: center; gap: 5px; color: #37715f; font-size: 9px; }
+.state::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #58a485; }
+.suspended { color: #a35a42; }
+.suspended::before { background: #d68365; }
+.empty { padding: 54px 20px; color: #7a8781; text-align: center; font-size: 12px; }
+@media (max-width: 800px) { .heading { align-items: start; flex-direction: column; } .status { width: 100%; justify-content: space-around; } .row { grid-template-columns: 1fr; } .actions { justify-content: flex-start; flex-wrap: wrap; } }

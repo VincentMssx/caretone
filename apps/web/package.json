@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@carevoice/types": "workspace:*",
+    "@supabase/ssr": "^0.7.0",
+    "@supabase/supabase-js": "^2.57.4",
     "leaflet": "^1.9.4",
     "next": "14.2.5",
     "react": "^18.3.1",

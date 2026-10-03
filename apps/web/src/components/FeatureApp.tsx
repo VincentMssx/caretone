@@ -1483,6 +1483,21 @@ function Settings({ setNotice }: { setNotice: (message: string) => void }) {
   const toggle = (key: keyof typeof settings) => setSettings((s) => ({ ...s, [key]: !s[key] }));
   return (
     <div className="settings-layout">
+      <section className="panel settings-card full-settings">
+        <div className="settings-head">
+          <span className="settings-icon">
+            <Icon name="admin_panel_settings" />
+          </span>
+          <div>
+            <h2>Équipe et accès</h2>
+            <p>Acceptez les demandes, choisissez les rôles et suspendez un accès immédiatement.</p>
+          </div>
+        </div>
+        <Link className="button primary" href="/admin/acces">
+          <Icon name="group_add" />
+          Gérer les accès
+        </Link>
+      </section>
       <section className="panel settings-card">
         <div className="settings-head">
           <span className="settings-icon">
